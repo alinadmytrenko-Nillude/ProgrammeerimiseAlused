@@ -1,0 +1,103 @@
+import pygame
+import sys
+import urllib.request
+import os
+import math
+
+# Piltide allalaadimine internetist
+def download_image(url, filename):
+    headers = {'User-Agent': 'Mozilla/5.0'}
+    req = urllib.request.Request(url, headers=headers)
+    with urllib.request.urlopen(req) as response:
+        with open(filename, 'wb') as f:
+            f.write(response.read())
+
+download_image("https://www.metshein.com/wp-content/uploads/2019/03/bg_shop.jpg", "bgshop.jpg")
+download_image("https://www.metshein.com/wp-content/uploads/2019/03/seller.png", "seller.png")
+download_image("https://www.metshein.com/wp-content/uploads/2019/03/chat.png", "chat.png")
+download_image("https://www.gstatic.com/webp/gallery/1.jpg", "tort.jpg")
+
+# PyGame'i algseadistamine
+pygame.init()
+
+# Aken 640x480, pealkiri – ülesande number
+screen = pygame.display.set_mode((640, 480))
+pygame.display.set_caption("Ülesanne 2")
+
+# Piltide laadimine
+bg = pygame.image.load("bgshop.jpg")
+bg = pygame.transform.scale(bg, (640, 480))
+
+seller = pygame.image.load("seller.png")
+seller = pygame.transform.scale(seller, (220, 300))
+
+chat = pygame.image.load("chat.png")
+chat = pygame.transform.scale(chat, (235, 195))
+
+# ÜLESANNE 1: VIKK logo vasakusse nurka
+vikk_logo = pygame.image.load("VIKK logo.png")
+vikk_logo = pygame.transform.scale(vikk_logo, (350, 50))
+
+# ÜLESANNE 2: Tort laua peale
+tort = pygame.image.load("tort.png")
+tort = pygame.transform.scale(tort, (180, 150))
+
+# ÜLESANNE 3: Mõõk seinale
+moook = pygame.image.load("Mõõk.png")
+moook = pygame.transform.scale(moook, (150, 150))
+moook = pygame.transform.rotate(moook, -43)
+
+# Kirjasort ja tekst nimega (valge värv)
+font = pygame.font.SysFont("Arial", 20, bold=True)
+text = font.render("Tere, Alina", True, (255, 255, 255))
+
+# ÜLESANNE 1.1: "TULEVIK 2050" kaarega
+font2 = pygame.font.SysFont("Arial", 14, bold=True)
+arc_text = "TULEVIK 2050"
+arc_cx = 350
+arc_cy = 30
+arc_radius = 30
+arc_start = -math.pi * 0.45
+
+clock = pygame.time.Clock()
+
+while True:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+
+    # Joonistame tausta
+    screen.blit(bg, (0, 0))
+
+    # Joonistame müüja (vasakul all)
+    screen.blit(seller, (140, 493 - 330))
+
+    # Joonistame mullikese (müüja paremal pool, ülaosas)
+    chat_x, chat_y = 270, 60
+    screen.blit(chat, (chat_x, chat_y))
+
+    # Tekst mullis keskel
+    text_x = chat_x + (235 - text.get_width()) // 2
+    text_y = chat_y + (195 - text.get_height()) // 2 - 15
+    screen.blit(text, (text_x, text_y))
+
+    # ÜLESANNE 1: VIKK logo vasakusse ülanurka
+    screen.blit(vikk_logo, (10, 10))
+
+    # ÜLESANNE 1.1: "TULEVIK 2050" kaarega
+    for i, char in enumerate(arc_text):
+        angle = arc_start + i * (math.pi / len(arc_text)) * 1.0
+        x = arc_cx + int(arc_radius * math.cos(angle))
+        y = arc_cy + int(arc_radius * math.sin(angle))
+        char_surf = font2.render(char, True, (0, 180, 100))
+        screen.blit(char_surf, (x, y))
+
+    # ÜLESANNE 2: Tort laua peale
+    screen.blit(tort, (300, 180))
+
+    # ÜLESANNE 3: Mõõk seinale
+    screen.blit(moook, (480, 115))
+
+    pygame.display.flip()
+    clock.tick(60)
