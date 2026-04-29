@@ -1,0 +1,100 @@
+import pygame
+import sys
+
+class Snowman:
+    def __init__(self, x, y):
+        # Lumemehe asukoha määramine ekraanil
+        self.x = x
+        self.y = y
+
+    def draw(self, screen):
+        # Lumemehe kolm keha (alt üles)
+        pygame.draw.circle(screen, (255, 255, 255), (self.x, self.y), 50)         # alumine ring
+        pygame.draw.circle(screen, (255, 255, 255), (self.x, self.y - 70), 38)    # keskmine ring
+        pygame.draw.circle(screen, (255, 255, 255), (self.x, self.y - 125), 28)   # pea
+
+        # Silmad
+        pygame.draw.circle(screen, (0, 0, 0), (self.x - 10, self.y - 130), 5)
+        pygame.draw.circle(screen, (0, 0, 0), (self.x + 10, self.y - 130), 5)
+
+        # Viki (kaks kolmnurka pea kohal)
+        bow_x = self.x
+        bow_y = self.y - 155
+
+        pygame.draw.polygon(screen, (255, 204, 255), [   # vasak tiib
+            (bow_x - 0, bow_y),
+            (bow_x - 30, bow_y - 12),
+            (bow_x - 10, bow_y - 30)
+        ])
+
+        pygame.draw.polygon(screen, (255, 204, 255), [   # parem tiib
+            (bow_x + 0, bow_y),
+            (bow_x + 30, bow_y - 12),
+            (bow_x + 10, bow_y - 30)
+        ])
+
+        # Porgandist nina
+        pygame.draw.polygon(screen, (255, 100, 0), [
+            (self.x, self.y - 120),
+            (self.x + 20, self.y - 115),
+            (self.x, self.y - 110)
+        ])
+        # Nööbid kehale
+        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y - 50), 5)
+        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y - 80), 5)
+
+
+class TrafficLight:
+    def __init__(self, x, y):
+        # Foori asukoha määramine ekraanil
+        self.x = x
+        self.y = y
+
+    def draw(self, screen):
+        # Foori korpus (tume ristkülik)
+        pygame.draw.rect(screen, (40, 40, 40), (self.x - 35, self.y - 110, 70, 220), border_radius=10)
+
+        # Kolm tuld: punane, kollane, roheline
+        pygame.draw.circle(screen, (255, 0, 0), (self.x, self.y - 70), 25)    # punane tuli
+        pygame.draw.circle(screen, (255, 220, 0), (self.x, self.y), 25)       # kollane tuli
+        pygame.draw.circle(screen, (0, 255, 0), (self.x, self.y + 70), 25)    # roheline tuli
+
+        # Tulede äärejooned
+        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y - 70), 25, 4)
+        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y), 25, 4)
+        pygame.draw.circle(screen, (0, 0, 0), (self.x, self.y + 70), 25, 4)
+
+
+# Pygame initsialiseerimine
+pygame.init()
+
+# Akna loomine ja pealkiri
+screen = pygame.display.set_mode((300, 300))
+pygame.display.set_caption("Ülesanne 1 - Lumemees ja Foor")
+
+clock = pygame.time.Clock()
+
+# Objektide loomine koos koordinaatidega
+lumemees = Snowman(80, 230)
+foor = TrafficLight(220, 140)
+
+# Põhisilmus — töötab kuni akna sulgemiseni
+running = True
+while running:
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False  # Väljumise sündmus katkestab silmuse
+
+# Tausta värvimine (helesinine taevas)
+    screen.fill((153, 204, 255))
+
+# Objektide joonistamine ekraanile
+    lumemees.draw(screen)
+    foor.draw(screen)
+
+# Ekraani uuendamine
+    pygame.display.flip()
+    clock.tick(60)  # Kiirusel 60 kaadrit sekundis
+
+pygame.quit()
+sys.exit()
