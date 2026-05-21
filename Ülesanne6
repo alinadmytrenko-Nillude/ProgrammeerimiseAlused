@@ -1,0 +1,107 @@
+import pygame, random
+pygame.init()
+
+# Settings
+screenX = 640
+screenY = 480
+screen = pygame.display.set_mode([screenX, screenY])
+pygame.display.set_caption("PingPong")
+clock = pygame.time.Clock()
+bgImage = pygame.image.load("mem.png")
+bgImage = pygame.transform.scale(bgImage, [screenX, screenY])
+
+# Background music
+try:
+    pygame.mixer.pre_init(44100, -16, 2, 512)
+    pygame.mixer.init()
+    pygame.mixer.music.load("music.mp3")
+    pygame.mixer.music.play(-1)
+except Exception as e:
+    print("Music error:", e)
+
+# Ball speed
+ballSpeedX = 4
+ballSpeedY = 4
+
+# Ball position
+ballX = random.randint(20, screenX - 20)
+ballY = 50
+
+# Pad position
+padX = screenX // 2
+padY = screenY // 1.5
+padSpeed = 6
+
+# Score
+score = 0
+font = pygame.font.SysFont(None, 36)
+
+# Load images
+ballImage = pygame.image.load("ball.png")
+ballImage = pygame.transform.scale(ballImage, [20, 20])
+
+padImage = pygame.image.load("pad.png")
+padImage = pygame.transform.scale(padImage, [120, 20])
+
+# Rect objects
+ball = pygame.Rect(ballX, ballY, 20, 20)
+pad  = pygame.Rect(padX, int(padY), 120, 20)
+
+gameover = False
+while not gameover:
+    clock.tick(60)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            gameover = True
+
+    # Pad controls
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT] and pad.left > 0:
+        padX -= padSpeed
+    if keys[pygame.K_RIGHT] and pad.right < screenX:
+        padX += padSpeed
+
+    # Update positions
+    ballX += ballSpeedX
+    ballY += ballSpeedY
+
+    ball = pygame.Rect(ballX, ballY, 20, 20)
+    pad  = pygame.Rect(padX, int(padY), 120, 20)
+
+    # Bounce off left and right walls
+    if ballX > screenX - 20 or ballX < 0:
+        ballSpeedX = -ballSpeedX
+
+    # Bounce off top wall
+    if ballY < 0:
+        ballSpeedY = -ballSpeedY
+
+    # Ball fell down — game over
+    if ballY > screenY:
+        gameover = True
+
+    # Collision between ball and pad
+    if ball.colliderect(pad) and ballSpeedY > 0:
+        ballSpeedY = -ballSpeedY
+        score += 1
+
+    # Draw everything
+    screen.blit(bgImage, (0, 0))
+    screen.blit(ballImage, ball)
+    screen.blit(padImage, pad)
+
+    # Show score on screen
+    scoreText = font.render("Score: " + str(score), True, (0, 0, 102))
+    screen.blit(scoreText, (10, 10))
+
+    pygame.display.flip()
+
+# Game over screen
+screen.fill((0, 0, 0))
+gameoverText = font.render("Game Over! Score: " + str(score), True, (255, 255, 255))
+screen.blit(gameoverText, (screenX // 2 - 150, screenY // 2))
+pygame.display.flip()
+pygame.time.wait(3000)
+
+pygame.quit()
