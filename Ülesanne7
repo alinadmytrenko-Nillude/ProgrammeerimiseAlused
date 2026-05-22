@@ -1,0 +1,71 @@
+import pygame
+import random
+
+pygame.init()
+
+# Värvid
+lBlue = [153, 204, 255]
+
+# Ekraani seaded
+screenX = 640
+screenY = 480
+screen = pygame.display.set_mode([screenX, screenY])
+pygame.display.set_caption("Hiir")
+clock = pygame.time.Clock()
+
+# Ringide nimekiri: iga element on [x, y, raadius, värv, dx, dy]
+circles = []
+MAX_CIRCLES = 10
+base_radius = 10
+
+gameover = False
+while not gameover:
+    clock.tick(60)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            gameover = True
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            x, y = event.pos
+            color = (random.randint(30, 220), random.randint(30, 220), random.randint(30, 220))
+            radius = base_radius + len(circles) * 3
+
+            # Случайная скорость по X и Y
+            dx = random.choice([-1, 1]) * random.uniform(2, 5)
+            dy = random.choice([-1, 1]) * random.uniform(2, 5)
+
+            circles.append([x, y, radius, color, dx, dy])
+
+            if len(circles) > MAX_CIRCLES:
+                circles.pop(0)
+
+
+    for c in circles:
+        c[0] += c[4]  # x += dx
+        c[1] += c[5]  # y += dy
+
+
+        if c[0] - c[2] < 0:
+            c[0] = c[2]
+            c[4] = abs(c[4])
+        elif c[0] + c[2] > screenX:
+            c[0] = screenX - c[2]
+            c[4] = -abs(c[4])
+
+
+        if c[1] - c[2] < 0:
+            c[1] = c[2]
+            c[5] = abs(c[5])
+        elif c[1] + c[2] > screenY:
+            c[1] = screenY - c[2]
+            c[5] = -abs(c[5])
+
+    # Joonista
+    screen.fill(lBlue)
+    for c in circles:
+        pygame.draw.circle(screen, c[3], (int(c[0]), int(c[1])), c[2], 2)
+
+    pygame.display.flip()
+
+pygame.quit()
