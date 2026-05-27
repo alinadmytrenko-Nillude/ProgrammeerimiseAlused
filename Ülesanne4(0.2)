@@ -1,0 +1,92 @@
+import pygame
+import sys
+import random
+
+pygame.init()
+
+# Värvid / Цвета
+red    = [255, 0, 0]
+green  = [0, 255, 0]
+blue   = [0, 0, 255]
+pink   = [255, 153, 255]
+lGreen = [153, 255, 153]
+lBlue  = [153, 204, 255]
+yellow = [255, 220, 50]
+orange = [255, 160, 30]
+white  = [255, 255, 255]
+
+# Ekraani seaded / Настройки экрана
+screenX = 640
+screenY = 480
+screen = pygame.display.set_mode([screenX, screenY])
+pygame.display.set_caption("Animeerimine")
+clock = pygame.time.Clock()
+
+# ── Pall / Мяч ────────────────────────────────────────────────────────────────
+ball = pygame.Surface((30, 30), pygame.SRCALPHA)
+pygame.draw.circle(ball, orange, (15, 15), 15)
+
+ballX  = random.randint(30, screenX - 30)
+ballY  = random.randint(30, screenY - 30)
+ballSX = random.choice([-4, -3, 3, 4])
+ballSY = random.choice([-4, -3, 3, 4])
+
+# ── Ruudud / Прямоугольники ────────────────────────────────────────────────────
+RECT_COUNT  = 10
+RECT_SIZE   = 20
+RECT_COLORS = [red, green, pink, lGreen, yellow, blue]
+
+# Каждый прямоугольник: [x, y, скорость_падения, цвет]
+def make_rect():
+    return [
+        random.randint(1, screenX - RECT_SIZE),
+        random.randint(-screenY, 0),        # стартует выше экрана
+        random.randint(2, 5),
+        random.choice(RECT_COLORS),
+    ]
+
+coords = [make_rect() for _ in range(RECT_COUNT)]
+
+# ── Главный цикл / Põhitsükkel ─────────────────────────────────────────────────
+running = True
+while running:
+    clock.tick(60)
+
+    # Sündmused / События
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+
+    # Taust / Фон
+    screen.fill(lBlue)
+
+    # --- Pall liigub / Мяч движется ---
+    ballX += ballSX
+    ballY += ballSY
+
+    # Põrge seintelt / Отскок от стен
+    if ballX > screenX - ball.get_rect().width or ballX < 0:
+        ballSX = -ballSX
+    if ballY > screenY - ball.get_rect().height or ballY < 0:
+        ballSY = -ballSY
+
+    screen.blit(ball, (ballX, ballY))
+
+    # --- Ruudud langevad / Прямоугольники падают ---
+    for r in coords:
+        pygame.draw.rect(screen, r[3], [r[0], r[1], RECT_SIZE, RECT_SIZE])
+        r[1] += r[2]                         # y suureneb / y растёт
+
+        # Kui jõuab alla, alustab uuesti ülevalt
+        # Когда достигает низа — рестарт сверху
+        if r[1] > screenY:
+            r[0] = random.randint(1, screenX - RECT_SIZE)
+            r[1] = random.randint(-100, -RECT_SIZE)
+            r[2] = random.randint(2, 5)
+            r[3] = random.choice(RECT_COLORS)
+
+    # Graafia ekraanile / Обновление экрана
+    pygame.display.flip()
+
+pygame.quit()
+sys.exit()
