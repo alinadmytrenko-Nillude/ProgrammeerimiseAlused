@@ -1,0 +1,151 @@
+import pygame, sys, random
+pygame.init()
+
+# --- screen settings ---
+screenX, screenY = 640, 480
+screen = pygame.display.set_mode([screenX, screenY])
+pygame.display.set_caption("Vastutulevad autod")
+clock = pygame.time.Clock()
+
+# --- road boundaries (adjust if needed) ---
+ROAD_LEFT  = 155   # x where road starts (left white line)
+ROAD_RIGHT = 425   # x where road ends minus car width (485 - 60)
+
+# --- load images ---
+taust = pygame.image.load("bg_rally.jpg")
+taust = pygame.transform.scale(taust, [screenX, screenY])
+
+punane_auto = pygame.image.load("f1_red.png")
+punane_auto = pygame.transform.scale(punane_auto, [60, 100])
+
+sinine_auto = pygame.image.load("f1_blue.png")
+sinine_auto = pygame.transform.scale(sinine_auto, [60, 100])
+sinine_auto = pygame.transform.flip(sinine_auto, False, True)
+
+# --- fonts ---
+font     = pygame.font.SysFont("Arial", 28, bold=True)
+font_big = pygame.font.SysFont("Arial", 60, bold=True)
+font_med = pygame.font.SysFont("Arial", 36, bold=True)
+
+# START SCREEN
+waiting = True
+blink_timer = 0
+show_blink = True
+
+while waiting:
+    clock.tick(60)
+    blink_timer += 1
+    if blink_timer >= 30:       # toggle every 30 frames (~0.5 s)
+        show_blink = not show_blink
+        blink_timer = 0
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            sys.exit()
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                waiting = False
+            if event.key == pygame.K_ESCAPE:
+                sys.exit()
+
+    # background
+    screen.blit(taust, (0, 0))
+    # semi-transparent dark overlay
+    overlay = pygame.Surface((screenX, screenY), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 160))
+    screen.blit(overlay, (0, 0))
+
+    # title
+    title_surf = font_big.render("VASTUTULEVAD", True, (255, 220, 0))
+    title_surf2 = font_big.render("AUTOD", True, (255, 220, 0))
+    screen.blit(title_surf,  (screenX // 2 - title_surf.get_width()  // 2, 100))
+    screen.blit(title_surf2, (screenX // 2 - title_surf2.get_width() // 2, 165))
+
+    # controls hint
+    ctrl_surf = font.render("← → : liikumine", True, (200, 200, 200))
+    screen.blit(ctrl_surf, (screenX // 2 - ctrl_surf.get_width() // 2, 280))
+
+    # blinking SPACE prompt
+    if show_blink:
+        start_surf = font_med.render("Vajuta SPACE alustamiseks", True, (255, 255, 255))
+        screen.blit(start_surf, (screenX // 2 - start_surf.get_width() // 2, 360))
+
+    pygame.display.flip()
+
+# ============================================================
+# --- GAME INIT (reset state after start screen) ---
+# ============================================================
+
+# --- red car — starts in center of road ---
+redX = screenX // 2 - 30
+redY = screenY - 120   # fixed at the bottom of screen
+car_speed = 5
+
+# --- blue cars ---
+autod = []
+lanes = [180, 300, 420]
+for lane in lanes:
+    autod.append([lane, random.randint(-300, -50), random.randint(2, 5)])
+
+# --- score ---
+skoor = 0
+
+# --- main game loop ---
+gameover = False
+while not gameover:
+    clock.tick(60)
+
+    for i in pygame.event.get():
+        if i.type == pygame.QUIT:
+            sys.exit()
+
+    # --- only LEFT and RIGHT, road limits ---
+    keys = pygame.key.get_pressed()
+    if keys[pygame.K_LEFT]  and redX > ROAD_LEFT:
+        redX -= car_speed
+    if keys[pygame.K_RIGHT] and redX < ROAD_RIGHT:
+        redX += car_speed
+
+    # draw background
+    screen.blit(taust, (0, 0))
+
+    # draw red car
+    screen.blit(punane_auto, (redX, redY))
+    red_rect = punane_auto.get_rect()
+    red_rect.topleft = (redX, redY)
+
+    # draw and move blue cars
+    for i in range(len(autod)):
+        screen.blit(sinine_auto, (autod[i][0], autod[i][1]))
+        autod[i][1] += autod[i][2]
+
+        blue_rect = sinine_auto.get_rect()
+        blue_rect.topleft = (autod[i][0], autod[i][1])
+
+        if red_rect.colliderect(blue_rect):
+            gameover = True
+
+        if autod[i][1] > screenY:
+            skoor += 1
+            autod[i][1] = random.randint(-300, -50)
+            autod[i][2] = random.randint(2, 5)
+
+    # display score and controls hint
+    screen.blit(font.render("Skoor: " + str(skoor), True, (255, 255, 0)), (10, 10))
+    screen.blit(font.render("← → : move", True, (255, 255, 255)), (10, 44))
+
+    pygame.display.flip()
+
+# --- Game Over screen ---
+while True:
+    screen.fill((0, 0, 0))
+    screen.blit(font_big.render("GAME OVER", True, (255, 0, 0)),        (160, 150))
+    screen.blit(font.render("Skoor: " + str(skoor), True, (255, 255, 255)), (240, 250))
+    screen.blit(font.render("Press ESC to quit", True, (180, 180, 180)),  (190, 310))
+    pygame.display.flip()
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            sys.exit()
+        if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+            sys.exit()
