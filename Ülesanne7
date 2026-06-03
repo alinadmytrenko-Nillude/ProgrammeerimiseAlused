@@ -1,71 +1,69 @@
-import pygame
-import random
+import pygame  # import pygame game library
+import random  # import random for generating random numbers
 
-pygame.init()
+pygame.init()  # initialize all pygame modules
 
-# Värvid
-lBlue = [153, 204, 255]
+# Colors
+lBlue = [153, 204, 255]  # light blue color used as background
 
-# Ekraani seaded
-screenX = 640
-screenY = 480
-screen = pygame.display.set_mode([screenX, screenY])
-pygame.display.set_caption("Hiir")
-clock = pygame.time.Clock()
+# Screen settings
+screenX = 640  # window width in pixels
+screenY = 480  # window height in pixels
+screen = pygame.display.set_mode([screenX, screenY])  # create the game window
+pygame.display.set_caption("Hiir")  # set the window title
+clock = pygame.time.Clock()  # create clock to control frame rate
 
-# Ringide nimekiri: iga element on [x, y, raadius, värv, dx, dy]
-circles = []
-MAX_CIRCLES = 10
-base_radius = 10
+# Circle list: each element is [x, y, radius, color, dx, dy]
+circles = []  # empty list that will store all active circles
+MAX_CIRCLES = 10  # maximum number of circles allowed on screen at once
+base_radius = 10  # starting radius for the first circle
 
-gameover = False
-while not gameover:
-    clock.tick(60)
+gameover = False  # flag that keeps the main loop running
+while not gameover:  # main loop — runs until the window is closed
+    clock.tick(60)  # limit the loop to 60 frames per second
 
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            gameover = True
+    for event in pygame.event.get():  # process all events in the queue
+        if event.type == pygame.QUIT:  # if the window close button is clicked
+            gameover = True  # set flag to exit the loop
 
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            x, y = event.pos
-            color = (random.randint(30, 220), random.randint(30, 220), random.randint(30, 220))
-            radius = base_radius + len(circles) * 3
+        if event.type == pygame.MOUSEBUTTONDOWN:  # if the user clicks the mouse
+            x, y = event.pos  # get the mouse click coordinates
+            color = (random.randint(30, 220), random.randint(30, 220), random.randint(30, 220))  # pick a random RGB color
+            radius = base_radius + len(circles) * 3  # each new circle is slightly larger than the previous
 
-            # Случайная скорость по X и Y
-            dx = random.choice([-1, 1]) * random.uniform(2, 5)
-            dy = random.choice([-1, 1]) * random.uniform(2, 5)
+            dx = random.choice([-1, 1]) * random.uniform(2, 5)  # random horizontal speed, left or right
+            dy = random.choice([-1, 1]) * random.uniform(2, 5)  # random vertical speed, up or down
 
-            circles.append([x, y, radius, color, dx, dy])
+            circles.append([x, y, radius, color, dx, dy])  # add the new circle to the list
 
-            if len(circles) > MAX_CIRCLES:
-                circles.pop(0)
+            if len(circles) > MAX_CIRCLES:  # if there are too many circles
+                circles.pop(0)  # remove the oldest circle from the list
 
+    for c in circles:  # loop through every circle
+        c[0] += c[4]  # move circle horizontally: x += dx
+        c[1] += c[5]  # move circle vertically:   y += dy
 
-    for c in circles:
-        c[0] += c[4]  # x += dx
-        c[1] += c[5]  # y += dy
+        if c[0] - c[2] < 0:  # if the left edge of the circle goes past the left wall
+            c[0] = c[2]  # push circle back so it touches the left wall
+            c[4] = abs(c[4])  # reverse direction to move right
 
+        elif c[0] + c[2] > screenX:  # if the right edge goes past the right wall
+            c[0] = screenX - c[2]  # push circle back so it touches the right wall
+            c[4] = -abs(c[4])  # reverse direction to move left
 
-        if c[0] - c[2] < 0:
-            c[0] = c[2]
-            c[4] = abs(c[4])
-        elif c[0] + c[2] > screenX:
-            c[0] = screenX - c[2]
-            c[4] = -abs(c[4])
+        if c[1] - c[2] < 0:  # if the top edge of the circle goes past the top wall
+            c[1] = c[2]  # push circle back so it touches the top wall
+            c[5] = abs(c[5])  # reverse direction to move downward
 
+        elif c[1] + c[2] > screenY:  # if the bottom edge goes past the bottom wall
+            c[1] = screenY - c[2]  # push circle back so it touches the bottom wall
+            c[5] = -abs(c[5])  # reverse direction to move upward
 
-        if c[1] - c[2] < 0:
-            c[1] = c[2]
-            c[5] = abs(c[5])
-        elif c[1] + c[2] > screenY:
-            c[1] = screenY - c[2]
-            c[5] = -abs(c[5])
+    # Draw
+    screen.fill(lBlue)  # clear the screen with the light blue background color
+    for c in circles:  # loop through every circle to draw it
+        pygame.draw.circle(screen, c[3], (int(c[0]), int(c[1])), c[2], 2)  # draw circle outline with width 2
 
-    # Joonista
-    screen.fill(lBlue)
-    for c in circles:
-        pygame.draw.circle(screen, c[3], (int(c[0]), int(c[1])), c[2], 2)
+    pygame.display.flip()  # update the display to show everything drawn this frame
 
-    pygame.display.flip()
-
-pygame.quit()
+pygame.quit()  # shut down all pygame modules when the loop ends
