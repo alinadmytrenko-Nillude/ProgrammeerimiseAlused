@@ -38,8 +38,6 @@ padImage = pygame.transform.scale(padImage, [120, 20])  # Scale paddle image to 
 ball = pygame.Rect(ballX, ballY, 20, 20)  # Create a rectangle for the ball (used for collision)
 pad = pygame.Rect(padX, padY, 120, 20)  # Create a rectangle for the paddle (used for collision)
 
-penalised = False  # Flag to avoid giving -1 multiple times per miss
-
 gameover = False  # Set game over flag to False to start the game loop
 while not gameover:  # Main game loop — runs until gameover becomes True
     clock.tick(60)  # Limit the game to 60 frames per second
@@ -75,25 +73,16 @@ while not gameover:  # Main game loop — runs until gameover becomes True
         ballY = 0
         ballSpeedY = -ballSpeedY
 
-    # Bounce off bottom wall
+    # Bounce off bottom wall — -1 point and bounce back up
     if ballY > screenY - 20:
         ballY = screenY - 20
-        ballSpeedY = -ballSpeedY
+        ballSpeedY = -ballSpeedY  # Bounce back up
+        score -= 1  # Subtract 1 point for hitting the bottom wall
 
     # Collision between ball and pad
     if ball.colliderect(pad) and ballSpeedY > 0:  # If ball hits the paddle while moving downward
         ballSpeedY = -ballSpeedY  # Reverse ball vertical direction (bounce up)
         score += 1  # Increase the score by 1
-        penalised = False  # Reset penalty flag after successful hit
-
-    # Penalty — ball passed paddle level going down without being caught
-    if ballY > padY and ballSpeedY > 0 and not ball.colliderect(pad) and not penalised:
-        score -= 1  # Subtract 1 from score
-        penalised = True  # Mark so we don't subtract multiple times
-
-    # Reset penalised flag once ball goes back up past paddle
-    if ballY < padY:
-        penalised = False
 
     if abs(ballSpeedX) > MAX_SPEED:
         ballSpeedX = MAX_SPEED if ballSpeedX > 0 else -MAX_SPEED
