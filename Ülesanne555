@@ -1,0 +1,121 @@
+import pygame, random  # Import pygame library for the game and random for random numbers
+
+pygame.init()  # Initialize all pygame modules
+
+# Settings
+screenX = 640  # Window width in pixels
+screenY = 480  # Window height in pixels
+screen = pygame.display.set_mode([screenX, screenY])  # Create the game window with given dimensions
+pygame.display.set_caption("PingPong")  # Set the window title
+clock = pygame.time.Clock()  # Create a clock object to control FPS
+
+# Ball speed
+ballSpeedX = 5  # Ball horizontal speed (pixels per frame)
+ballSpeedY = 5  # Ball vertical speed (pixels per frame)
+MAX_SPEED = 6.0
+
+# Ball position
+ballX = random.randint(20, screenX - 20)  # Random starting X position for the ball
+ballY = 50  # Starting Y position for the ball (near the top)
+
+# Pad position
+padX = screenX // 2  # Paddle starting X position (center of screen)
+padY = int(screenY // 1.5)  # Paddle starting Y position (lower third of screen)
+padSpeed = 6  # Paddle movement speed (pixels per frame)
+
+# Score
+score = 0  # Initialize player score to zero
+font = pygame.font.SysFont(None, 36)  # Create a font object with size 36 for rendering text
+
+# Load images
+ballImage = pygame.image.load("ball.png")  # Load the ball image from file
+ballImage = pygame.transform.scale(ballImage, [20, 20])  # Scale ball image to 20x20 pixels
+
+padImage = pygame.image.load("pad.png")  # Load the paddle image from file
+padImage = pygame.transform.scale(padImage, [120, 20])  # Scale paddle image to 120x20 pixels
+
+# Rect objects
+ball = pygame.Rect(ballX, ballY, 20, 20)  # Create a rectangle for the ball (used for collision)
+pad = pygame.Rect(padX, padY, 120, 20)  # Create a rectangle for the paddle (used for collision)
+
+penalised = False  # Flag to avoid giving -1 multiple times per miss
+
+gameover = False  # Set game over flag to False to start the game loop
+while not gameover:  # Main game loop — runs until gameover becomes True
+    clock.tick(60)  # Limit the game to 60 frames per second
+
+    for event in pygame.event.get():  # Loop through all events in the event queue
+        if event.type == pygame.QUIT:  # If the user closed the window
+            gameover = True  # Set game over flag to exit the loop
+
+    # Pad controls
+    keys = pygame.key.get_pressed()  # Get the state of all keyboard keys
+    if keys[pygame.K_LEFT] and pad.left > 0:  # If LEFT arrow is pressed and paddle is not at left edge
+        padX -= padSpeed  # Move paddle to the left
+    if keys[pygame.K_RIGHT] and pad.right < screenX:  # If RIGHT arrow is pressed and paddle is not at right edge
+        padX += padSpeed  # Move paddle to the right
+
+    # Update positions
+    ballX += ballSpeedX  # Update ball X position by its horizontal speed
+    ballY += ballSpeedY  # Update ball Y position by its vertical speed
+
+    ball = pygame.Rect(ballX, ballY, 20, 20)  # Recreate ball rectangle with updated position
+    pad = pygame.Rect(padX, padY, 120, 20)  # Recreate paddle rectangle with updated position
+
+    # Bounce off left and right walls
+    if ballX > screenX - 20:
+        ballX = screenX - 20
+        ballSpeedX = -ballSpeedX
+    if ballX < 0:
+        ballX = 0
+        ballSpeedX = -ballSpeedX
+
+    # Bounce off top wall
+    if ballY < 0:
+        ballY = 0
+        ballSpeedY = -ballSpeedY
+
+    # Bounce off bottom wall
+    if ballY > screenY - 20:
+        ballY = screenY - 20
+        ballSpeedY = -ballSpeedY
+
+    # Collision between ball and pad
+    if ball.colliderect(pad) and ballSpeedY > 0:  # If ball hits the paddle while moving downward
+        ballSpeedY = -ballSpeedY  # Reverse ball vertical direction (bounce up)
+        score += 1  # Increase the score by 1
+        penalised = False  # Reset penalty flag after successful hit
+
+    # Penalty — ball passed paddle level going down without being caught
+    if ballY > padY and ballSpeedY > 0 and not ball.colliderect(pad) and not penalised:
+        score -= 1  # Subtract 1 from score
+        penalised = True  # Mark so we don't subtract multiple times
+
+    # Reset penalised flag once ball goes back up past paddle
+    if ballY < padY:
+        penalised = False
+
+    if abs(ballSpeedX) > MAX_SPEED:
+        ballSpeedX = MAX_SPEED if ballSpeedX > 0 else -MAX_SPEED
+    if abs(ballSpeedY) > MAX_SPEED:
+        ballSpeedY = MAX_SPEED if ballSpeedY > 0 else -MAX_SPEED
+
+    # Draw everything
+    screen.fill((30, 30, 60))  # Fill background with dark blue color
+    screen.blit(ballImage, ball)  # Draw the ball image at the ball's current position
+    screen.blit(padImage, pad)  # Draw the paddle image at the paddle's current position
+
+    # Show score on screen
+    scoreText = font.render("Score: " + str(score), True, (255, 255, 255))  # Render score text in white
+    screen.blit(scoreText, (10, 10))  # Draw the score text at the top-left corner
+
+    pygame.display.flip()  # Update the full display surface to the screen
+
+# Game over screen
+screen.fill((0, 0, 0))  # Fill the screen with black color
+gameoverText = font.render("Game Over! Score: " + str(score), True, (255, 255, 255))  # Render white game over text
+screen.blit(gameoverText, (screenX // 2 - 150, screenY // 2))  # Draw game over text in the center of screen
+pygame.display.flip()  # Update the display to show the game over screen
+pygame.time.wait(3000)  # Wait 3 seconds before closing the window
+
+pygame.quit()  # Uninitialize all pygame modules and close the window
