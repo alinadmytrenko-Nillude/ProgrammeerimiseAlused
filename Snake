@@ -1,0 +1,509 @@
+import pygame   # PyGame mängumootor
+import random   # Juhuslike arvude generaator
+import json     # JSON-faili lugemiseks/kirjutamiseks
+import os       # Failiteedega töötamiseks
+import math     # Matemaatilised funktsioonid (helilainete genereerimiseks)
+import numpy    # Arvumassiivid (heli genereerimiseks)
+
+# --- MÄNGU SEADISTUSED ---
+# Kõik koordinaadid salvestatakse RUUDUSTIKU ühikutes, mitte pikslites.
+# Pikslitesse teisendatakse ainult joonistamisel (gx/gy funktsioonid).
+
+CELL = 24           # Ühe ruudu suurus pikslites
+COLS = 20           # Veergude arv mänguväljal
+ROWS = 20           # Ridade arv mänguväljal
+HUD_H = 30          # Ülemise inforiba kõrgus pikslites
+WIDTH  = COLS * CELL            # Akna laius pikslites
+HEIGHT = ROWS * CELL + HUD_H    # Akna kõrgus pikslites
+
+INIT_SPEED = 5      # Algne kiirus (kaadrit sekundis)
+MAX_SPEED  = 15     # Maksimaalne kiirus
+
+SCORES_FILE = "scores.json"  # Failinimi tulemuste salvestamiseks
+
+# Värvid (R, G, B)
+BLACK      = (0,   0,   0)
+WHITE      = (255, 255, 255)
+GREEN      = (34,  180, 34)    # Ussi keha
+DARK_GREEN = (10,  110, 10)    # Ussi pea
+RED        = (210, 40,  40)    # Toit
+GOLD       = (255, 210, 0)     # Boonusvili
+GRAY       = (110, 110, 110)   # Takistused
+DARK_GRAY  = (28,  28,  28)    # Mänguvälja taust
+GRID_COLOR = (40,  40,  40)    # Ruudustiku joonte värv
+LIGHT_BLUE = (100, 180, 255)   # Menüü tekst
+ORANGE     = (255, 140, 0)     # Feature tekst
+YELLOW     = (255, 255, 0)     # Uue taseme teade
+PAUSE_OVERLAY = (0, 0, 0, 160) # Poolläbipaistev paus-kate
+
+# -----------------------------------------------------------------------
+# HELI GENEREERIMINE (Modification 6)
+# Kasutatakse numpy'ga sünteesitud lained - välisel helifailil pole vaja
+# -----------------------------------------------------------------------
+
+def make_beep(freq=440, duration=0.08, volume=0.3, sample_rate=44100):
+    """
+    Genereerib lühikese beep-heli antud sagedusega.
+    freq     - heli sagedus Hz (kõrgem = kõrgem toon)
+    duration - heli kestus sekundites
+    volume   - helitugevus 0.0 kuni 1.0
+    """
+    frames = int(sample_rate * duration)  # Kaadrite arv
+    t = numpy.linspace(0, duration, frames, False)  # Ajatelg
+    wave = numpy.sin(2 * math.pi * freq * t)        # Sinuslaine
+    # Fade out - heli vaibub lõpus sujuvalt (vältib klikke)
+    fade = numpy.linspace(1.0, 0.0, frames)
+    wave = (wave * fade * volume * 32767).astype(numpy.int16)  # 16-bit PCM
+    stereo = numpy.column_stack([wave, wave])  # Stereo (vasak + parem kanal)
+    return pygame.sndarray.make_sound(stereo)  # Loo PyGame heliobj
+
+def init_sounds():
+    """
+    Initsialiseeri kõik mängus kasutatavad helid.
+    Tagastab sõnastiku {'eat', 'bonus', 'die', 'level'}.
+    """
+    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
+    return {
+        'eat':   make_beep(freq=600,  duration=0.07, volume=0.25),  # Söömisel
+        'bonus': make_beep(freq=900,  duration=0.12, volume=0.30),  # Boonusvili
+        'die':   make_beep(freq=150,  duration=0.35, volume=0.40),  # Suremisel
+        'level': make_beep(freq=1000, duration=0.18, volume=0.30),  # Uus tase
+    }
+
+# -----------------------------------------------------------------------
+# RUUDUSTIKU <-> PIKSLI TEISENDUS
+# -----------------------------------------------------------------------
+
+def gx(col):
+    """Teisendab veeru indeksi ekraani X-koordinaadiks pikslites."""
+    return col * CELL
+
+def gy(row):
+    """Teisendab rea indeksi ekraani Y-koordinaadiks pikslites (arvestab HUD-i)."""
+    return row * CELL + HUD_H
+
+# -----------------------------------------------------------------------
+# TULEMUSTE HALDUS (Modification 4)
+# -----------------------------------------------------------------------
+
+def load_scores():
+    """Laadib salvestatud TOP-5 tulemused failist."""
+    if os.path.exists(SCORES_FILE):  # Kui fail olemas
+        try:
+            with open(SCORES_FILE, "r") as f:
+                return json.load(f)  # Tagasta loetud nimekiri
+        except:
+            return []  # Vea korral tagasta tühi nimekiri
+    return []  # Faili pole - tagasta tühi nimekiri
+
+def save_scores(scores):
+    """Salvestab tulemuste nimekirja faili."""
+    with open(SCORES_FILE, "w") as f:
+        json.dump(scores, f)  # Kirjuta JSON formaadis
+
+def add_score(score):
+    """Lisab uue tulemuse, sorteerib ja jätab alles TOP-5."""
+    scores = load_scores()        # Laadi olemasolevad tulemused
+    scores.append(score)          # Lisa uus tulemus
+    scores.sort(reverse=True)     # Sorteeri suurimast väikseimani
+    scores = scores[:5]           # Jäta alles ainult 5 parimat
+    save_scores(scores)           # Salvesta faili
+    return scores
+
+# -----------------------------------------------------------------------
+# MÄNGU LOOGIKA
+# -----------------------------------------------------------------------
+
+def spawn_obstacles(snake, food, bonus, count=4):
+    """
+    Genereerib juhuslikud takistused mänguväljale.
+    Modification 1: takistused ei kattu ussi, toidu ega üksteisega.
+    """
+    blocked = set(snake) | {food}  # Keelatud positsioonide hulk
+    if bonus:
+        blocked.add(bonus)          # Lisa ka boonusvili keelatud hulka
+    obstacles = []
+    attempts = 0  # Katsete loendur (välditakse lõputut tsüklit)
+
+    while len(obstacles) < count and attempts < 500:
+        attempts += 1
+        pos = (random.randint(1, COLS - 2), random.randint(1, ROWS - 2))
+        if pos not in blocked and pos not in obstacles:
+            obstacles.append(pos)  # Lisa sobiv positsioon
+
+    return obstacles
+
+def spawn_food(snake, obstacles, bonus):
+    """Genereerib toidu juhuslikku vabasse ruutu."""
+    blocked = set(snake) | set(obstacles)  # Kõik keelatud positsioonid
+    if bonus:
+        blocked.add(bonus)
+
+    while True:  # Korda kuni leitakse vaba ruut
+        pos = (random.randint(0, COLS - 1), random.randint(0, ROWS - 1))
+        if pos not in blocked:
+            return pos  # Tagasta vaba positsioon
+
+# -----------------------------------------------------------------------
+# JOONISTAMINE
+# -----------------------------------------------------------------------
+
+def draw_grid(screen):
+    """Joonistab ruudustiku jooned mänguväljale."""
+    for c in range(COLS + 1):  # Vertikaalsed jooned
+        pygame.draw.line(screen, GRID_COLOR, (gx(c), HUD_H), (gx(c), HEIGHT), 1)
+    for r in range(ROWS + 1):  # Horisontaalsed jooned
+        pygame.draw.line(screen, GRID_COLOR, (0, gy(r)), (WIDTH, gy(r)), 1)
+
+def draw_cell(screen, col, row, color, pad=2, radius=4):
+    """Joonistab ühe täidetud ruudu ruudustiku koordinaatide järgi."""
+    pygame.draw.rect(screen, color,
+                     (gx(col) + pad, gy(row) + pad, CELL - 2*pad, CELL - 2*pad),
+                     border_radius=radius)
+
+def draw_snake(screen, snake, flash=False, flash_color=WHITE):
+    """
+    Joonistab ussi ekraanile.
+    flash=True korral joonistab ussi flash_color värviga (surmaanimatsioon).
+    Modification 8: surmaanimatsioon vilkumise kaudu.
+    """
+    for i, (col, row) in enumerate(snake):
+        if flash:
+            color = flash_color  # Surmaanimatsioon - kõik segmendid vilguvad
+        elif i == 0:
+            color = DARK_GREEN   # Pea - tumedam roheline
+        else:
+            color = GREEN        # Keha - heleroheline
+        pad = 1 if i == 0 else 2
+        rad = 5 if i == 0 else 3
+        draw_cell(screen, col, row, color, pad=pad, radius=rad)
+
+def draw_scene(screen, snake, food, obstacles, bonus_pos, bonus_timer,
+               score, level, speed, font_small, font_tiny, flash=False, flash_color=WHITE):
+    """
+    Joonistab kogu mängustseen ühes kutses.
+    Eraldatud funktsioon, et saada kasutada nii mängus kui surmaanimatsioonil.
+    """
+    screen.fill(DARK_GRAY)   # Taustavärv
+    draw_grid(screen)         # Ruudustik
+
+    # Takistused (Modification 1)
+    for (ox, oy) in obstacles:
+        draw_cell(screen, ox, oy, GRAY, pad=1, radius=2)
+        pygame.draw.rect(screen, (60, 60, 60), (gx(ox), gy(oy), CELL, CELL), 1)
+
+    # Toit (punane ruut)
+    draw_cell(screen, food[0], food[1], RED, pad=3, radius=5)
+
+    # Boonusvili - vilgub lõpu lähedal (Modification 3)
+    if bonus_pos is not None:
+        bx, by = bonus_pos
+        if bonus_timer > 20 or bonus_timer % 6 < 3:  # Vilkumisefekt
+            draw_cell(screen, bx, by, GOLD, pad=2, radius=6)
+            lbl = font_tiny.render("B", True, BLACK)
+            screen.blit(lbl, (gx(bx) + 7, gy(by) + 5))
+
+    # Uss (Modification 8: flash-parameeter surmaanimatsiooniks)
+    draw_snake(screen, snake, flash=flash, flash_color=flash_color)
+
+    # HUD - ülemine inforiba
+    pygame.draw.rect(screen, BLACK, (0, 0, WIDTH, HUD_H))
+    pygame.draw.line(screen, GRAY, (0, HUD_H), (WIDTH, HUD_H), 1)
+    hud = font_small.render(
+        f"Score: {score}   Level: {level}   Speed: {speed}   P - pause", True, WHITE)
+    screen.blit(hud, (8, 7))
+
+# -----------------------------------------------------------------------
+# PEAMINE MÄNGUFUNKTSIOON
+# -----------------------------------------------------------------------
+
+def main():
+    """Loob akna, fondid, helid ja käivitab mängu peaahela."""
+    pygame.init()  # Initsialiseeri PyGame
+    screen = pygame.display.set_mode((WIDTH, HEIGHT))  # Loo mänguaken
+    pygame.display.set_caption("Snake Game")           # Akna pealkiri
+    clock = pygame.time.Clock()  # Ajamõõtja FPS kontrollimiseks
+
+    # Helide initsialiseerimine (Modification 6)
+    try:
+        sounds = init_sounds()   # Proovi genereerida helid
+    except Exception:
+        sounds = {}              # Kui numpy puudub, mäng töötab vaikselt
+
+    # Fondid
+    font_big   = pygame.font.SysFont("Consolas", 36, bold=True)
+    font_mid   = pygame.font.SysFont("Consolas", 22)
+    font_small = pygame.font.SysFont("Consolas", 16)
+    font_tiny  = pygame.font.SysFont("Consolas", 13)
+
+    def play(name):
+        """Mängib heli nimega 'name', kui see on olemas."""
+        if name in sounds:
+            sounds[name].play()  # Käivita heli
+
+    # -------------------------------------------------------------------
+    def death_animation(snake, food, obstacles, bonus_pos, bonus_timer,
+                        score, level, speed):
+        """
+        Surmaanimatsioon: uss vilgub punaselt 6 korda enne Game Over ekraani.
+        Modification 8: visuaalne tagasiside surmale.
+        """
+        play('die')  # Mängi surmahelisid (Modification 6)
+
+        for i in range(6):  # 6 vilkumist
+            flash = (i % 2 == 0)           # Paaris = punane, paaritu = normaalne
+            color = RED if flash else WHITE  # Vahelduvad värvid
+            draw_scene(screen, snake, food, obstacles, bonus_pos, bonus_timer,
+                       score, level, speed, font_small, font_tiny,
+                       flash=flash, flash_color=color)
+            pygame.display.flip()
+            pygame.time.delay(80)  # 80ms iga vilkumise vahel
+
+    # -------------------------------------------------------------------
+    def game_loop():
+        """Ühe mänguringi loogika. Tagastab lõpliku skoori."""
+
+        # Ussi algpositsioon ruudustiku keskel
+        sx = COLS // 2
+        sy = ROWS // 2
+        snake = [(sx, sy), (sx - 1, sy), (sx - 2, sy)]  # Pea + 2 kehasegmenti
+
+        direction      = (1, 0)   # Algsuund: paremale
+        next_direction = direction
+
+        score    = 0          # Mängija skoor
+        level    = 1          # Praegune tase (Modification 5)
+        speed    = INIT_SPEED # Praegune kiirus (Modification 2)
+        eaten    = 0          # Söödud toitude arv kiirenduse jaoks
+        paused   = False      # Paus-lipp (Modification 7)
+
+        bonus_pos   = None  # Boonusvili positsioon (None = pole ekraanil)
+        bonus_timer = 0     # Mitu kaadrit boonusvili veel nähtav on
+
+        # Uue taseme teade: (tekst, mitu kaadrit näidata)
+        level_msg       = ""
+        level_msg_timer = 0
+
+        food = spawn_food(snake, [], None)                      # Esimene toit
+        obstacles = spawn_obstacles(snake, food, None, count=3) # Esimesed takistused
+
+        while True:
+            # --- SÜNDMUSTE TÖÖTLUS ---
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); exit()
+
+                if event.type == pygame.KEYDOWN:
+                    # Modification 7: PAUSE - P-klahv lülitab pausi sisse/välja
+                    if event.key == pygame.K_p:
+                        paused = not paused  # Lülita pausi olek
+
+                    if not paused:  # Suunaklahvid töötavad ainult mängu ajal
+                        if event.key == pygame.K_UP    and direction != (0,  1):
+                            next_direction = (0, -1)   # Üles
+                        elif event.key == pygame.K_DOWN  and direction != (0, -1):
+                            next_direction = (0,  1)   # Alla
+                        elif event.key == pygame.K_LEFT  and direction != (1,  0):
+                            next_direction = (-1, 0)   # Vasakule
+                        elif event.key == pygame.K_RIGHT and direction != (-1, 0):
+                            next_direction = (1,  0)   # Paremale
+
+                    if event.key == pygame.K_ESCAPE:
+                        return score  # ESC - lõpeta mäng
+
+            # --- PAUS (Modification 7) ---
+            if paused:
+                # Joonista mängustseen taustaks
+                draw_scene(screen, snake, food, obstacles, bonus_pos, bonus_timer,
+                           score, level, speed, font_small, font_tiny)
+
+                # Poolläbipaistev must kate pausi ajal
+                overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+                overlay.fill(PAUSE_OVERLAY)
+                screen.blit(overlay, (0, 0))
+
+                # PAUSED tekst ekraani keskel
+                pt = font_big.render("PAUSED", True, WHITE)
+                screen.blit(pt, (WIDTH // 2 - pt.get_width() // 2,
+                                 HEIGHT // 2 - pt.get_height() // 2 - 15))
+                pt2 = font_small.render("Press P to continue", True, LIGHT_BLUE)
+                screen.blit(pt2, (WIDTH // 2 - pt2.get_width() // 2,
+                                  HEIGHT // 2 + 25))
+
+                pygame.display.flip()
+                clock.tick(15)  # Paus-ajal vähendame FPS-i (säästab protsessorit)
+                continue        # Ära liigu edasi mängu loogikasse
+
+            direction = next_direction  # Kinnita suund selle sammu jaoks
+
+            # --- USSI LIIGUTAMINE ---
+            hx, hy = snake[0]
+            new_head = (hx + direction[0], hy + direction[1])  # Uus pea
+
+            # --- KOKKUPÕRGETE KONTROLL ---
+            nx, ny = new_head
+            hit = (nx < 0 or nx >= COLS or ny < 0 or ny >= ROWS  # Sein
+                   or new_head in snake                            # Oma keha
+                   or new_head in obstacles)                       # Takistus (Mod 1)
+
+            if hit:
+                # Modification 8: käivita surmaanimatsioon enne lõppu
+                death_animation(snake, food, obstacles, bonus_pos, bonus_timer,
+                                score, level, speed)
+                return score  # Mäng läbi - tagasta skoor
+
+            # --- TOIDU SÖÖMINE ---
+            ate = False  # Lipp: kas toit söödi sel sammul
+
+            if new_head == food:  # Toit söödud
+                score += 10       # +10 punkti
+                eaten += 1        # Söödud loendur kiirenduse jaoks
+                ate = True
+                play('eat')       # Söömisheli (Modification 6)
+                food = spawn_food([new_head] + snake, obstacles, bonus_pos)
+
+                # Modification 2: SPEED-UP - kiirenda iga 5 toidu järel
+                if eaten % 5 == 0:
+                    speed = min(speed + 1, MAX_SPEED)
+
+                # Modification 5: LEVELS - uus tase iga 50 punkti järel
+                new_level = score // 50 + 1
+                if new_level > level:
+                    level = new_level
+                    play('level')  # Tasemeheli (Modification 6)
+                    level_msg = f"LEVEL {level}!"   # Uue taseme teade
+                    level_msg_timer = 60             # Näita 60 kaadrit (~1 sek)
+                    obstacles = spawn_obstacles(
+                        [new_head] + snake, food, bonus_pos, count=3 + level)
+
+                # Modification 3: BONUS FRUIT - 30% tõenäosus ilmumiseks
+                if random.random() < 0.3 and bonus_pos is None:
+                    bonus_pos   = spawn_food([new_head] + snake, obstacles, food)
+                    bonus_timer = 80  # Nähtav 80 kaadrit
+
+            # Modification 3: BONUS FRUIT söömine
+            if new_head == bonus_pos:
+                score      += 25    # Boonusvili annab 25 punkti
+                bonus_pos   = None  # Eemalda boonusvili
+                bonus_timer = 0
+                ate = True          # Uss kasvab ka boonusviljast
+                play('bonus')       # Boonusheli (Modification 6)
+
+            # Uuenda ussi
+            snake.insert(0, new_head)  # Lisa uus pea
+            if not ate:
+                snake.pop()            # Eemalda saba (kui ei söönud)
+
+            # Uuenda boonusvili taimerit
+            if bonus_pos is not None:
+                bonus_timer -= 1
+                if bonus_timer <= 0:
+                    bonus_pos = None   # Boonusvili aegus
+
+            # Uuenda uue taseme teate taimerit
+            if level_msg_timer > 0:
+                level_msg_timer -= 1
+
+            # --- JOONISTAMINE ---
+            draw_scene(screen, snake, food, obstacles, bonus_pos, bonus_timer,
+                       score, level, speed, font_small, font_tiny)
+
+            # Uue taseme teade ekraani keskel (Modification 5)
+            if level_msg_timer > 0:
+                alpha = min(255, level_msg_timer * 6)  # Fade-out efekt
+                lsurf = font_big.render(level_msg, True, YELLOW)
+                lsurf.set_alpha(alpha)  # Läbipaistvus
+                screen.blit(lsurf, (WIDTH // 2 - lsurf.get_width() // 2,
+                                    HEIGHT // 2 - lsurf.get_height() // 2))
+
+            pygame.display.flip()   # Kuva uuendatud kaader
+            clock.tick(speed)       # Piira kaadrisagedust
+
+    # -------------------------------------------------------------------
+    def show_menu():
+        """Kuvab peamenüü koos TOP-5 tulemustabeliga."""
+        scores = load_scores()  # Laadi salvestatud tulemused
+
+        while True:
+            screen.fill(BLACK)
+
+            t = font_big.render("SNAKE GAME", True, GREEN)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 45))
+
+            t = font_mid.render("Press SPACE to play", True, LIGHT_BLUE)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 125))
+
+            t = font_small.render("Arrow keys - move  |  P - pause  |  ESC - quit", True, GRAY)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 160))
+
+            t = font_tiny.render(
+                "Modifications: Obstacles | Speed-up | Bonus fruit | Levels | Top-5 | Sound | Pause | Death anim",
+                True, ORANGE)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 192))
+
+            t = font_mid.render("HIGH SCORES:", True, GOLD)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 228))
+
+            if scores:
+                for i, s in enumerate(scores):
+                    color = GOLD if i == 0 else WHITE  # Esimene koht kuldne
+                    t = font_small.render(f"  {i+1}. {s} points", True, color)
+                    screen.blit(t, (WIDTH // 2 - 65, 263 + i * 26))
+            else:
+                t = font_small.render("No scores yet!", True, GRAY)
+                screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 268))
+
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        return          # Alusta mängu
+                    if event.key == pygame.K_ESCAPE:
+                        pygame.quit(); exit()
+
+    # -------------------------------------------------------------------
+    def show_game_over(score):
+        """Kuvab 'Game Over' ekraani ja salvestab tulemuse (Modification 4)."""
+        scores = add_score(score)  # Salvesta tulemus TOP-5 nimekirja
+        best = scores[0] if scores else score
+
+        while True:
+            screen.fill(BLACK)
+
+            t = font_big.render("GAME OVER!", True, RED)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 130))
+
+            t = font_mid.render(f"Your score: {score} points", True, WHITE)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 210))
+
+            t = font_mid.render(f"Best score: {best} points", True, GOLD)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 248))
+
+            t = font_small.render("R - play again  |  ESC - menu", True, LIGHT_BLUE)
+            screen.blit(t, (WIDTH // 2 - t.get_width() // 2, 320))
+
+            pygame.display.flip()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); exit()
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        return True   # Mängi uuesti
+                    if event.key == pygame.K_ESCAPE:
+                        return False  # Tagasi menüüsse
+
+    # --- PEAMINE PROGRAMMIVOOG ---
+    while True:
+        show_menu()                         # Kuva menüü
+        score = game_loop()                 # Käivita mäng
+        play_again = show_game_over(score)  # Kuva tulemus
+        if not play_again:
+            continue                        # Tagasi menüüsse
+
+# Programmi käivitamise sisendpunkt
+if __name__ == "__main__":
+    main()
