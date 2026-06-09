@@ -1,69 +1,62 @@
-import pygame  # import pygame game library
-import random  # import random for generating random numbers
+import pygame          # Impordime pygame mooduli, et saaksime mängu teha
+import random          # Impordime random mooduli, et saaksime juhuslikke väärtusi
 
-pygame.init()  # initialize all pygame modules
+pygame.init()          # Käivitame pygame'i
 
-# Colors
-lBlue = [153, 204, 255]  # light blue color used as background
+# Värvid
+LIGHT_BLUE = (153, 204, 255)   # Määrame tausta värvi (helesinine)
 
-# Screen settings
-screenX = 640  # window width in pixels
-screenY = 480  # window height in pixels
-screen = pygame.display.set_mode([screenX, screenY])  # create the game window
-pygame.display.set_caption("Hiir")  # set the window title
-clock = pygame.time.Clock()  # create clock to control frame rate
+# Ekraani seaded
+SCREEN_WIDTH = 640             # Määrame akna laiuse
+SCREEN_HEIGHT = 480            # Määrame akna kõrguse
+screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])  # Loome mängu akna
+pygame.display.set_caption("Hiir - Kliki ja loo ringe!")         # Paneme aknale pealkirja
+clock = pygame.time.Clock()    # Loome kella, et kontrollida mängu kiirust
 
-# Circle list: each element is [x, y, radius, color, dx, dy]
-circles = []  # empty list that will store all active circles
-MAX_CIRCLES = 10  # maximum number of circles allowed on screen at once
-base_radius = 10  # starting radius for the first circle
+# Ringide nimekiri: [x, y, radius, color]
+circles = []                   # Tühi nimekiri, kuhu salvestame kõik ringid
+MAX_CIRCLES = 10               # Maksimaalne ringide arv korraga
 
-gameover = False  # flag that keeps the main loop running
-while not gameover:  # main loop — runs until the window is closed
-    clock.tick(60)  # limit the loop to 60 frames per second
+running = True                 # Muutuja, mis hoiab mängu töös
+while running:                 # Põhiloop, mis töötab seni kuni mäng pole lõpetatud
+    clock.tick(60)             # Piirame mängu kiirust 60 kaadrini sekundis
 
-    for event in pygame.event.get():  # process all events in the queue
-        if event.type == pygame.QUIT:  # if the window close button is clicked
-            gameover = True  # set flag to exit the loop
+    for event in pygame.event.get():   # Kontrollime kõiki sündmusi (kliki, sulgemine jne)
+        if event.type == pygame.QUIT:  # Kui kasutaja vajutab akna ristile
+            running = False            # Lõpetame mängu
 
-        if event.type == pygame.MOUSEBUTTONDOWN:  # if the user clicks the mouse
-            x, y = event.pos  # get the mouse click coordinates
-            color = (random.randint(30, 220), random.randint(30, 220), random.randint(30, 220))  # pick a random RGB color
-            radius = base_radius + len(circles) * 3  # each new circle is slightly larger than the previous
+        if event.type == pygame.MOUSEBUTTONDOWN:  # Kui hiirega klikitakse
+            x, y = event.pos                  # Saame kliki koordinaadid
 
-            dx = random.choice([-1, 1]) * random.uniform(2, 5)  # random horizontal speed, left or right
-            dy = random.choice([-1, 1]) * random.uniform(2, 5)  # random vertical speed, up or down
+            # Juhuslik värv
+            color = (                         # Loome juhusliku värvi
+                random.randint(30, 220),      # Punane komponent
+                random.randint(30, 220),      # Roheline komponent
+                random.randint(30, 220)       # Sinine komponent
+            )
+            
+            # Juhuslik raadius vahemikus 10–60 pikslit
+            radius = random.randint(10, 60)   # Iga ring on erineva suurusega
 
-            circles.append([x, y, radius, color, dx, dy])  # add the new circle to the list
+            # Lisa ring
+            circles.append([x, y, radius, color])  # Lisame uue ringi nimekirja
 
-            if len(circles) > MAX_CIRCLES:  # if there are too many circles
-                circles.pop(0)  # remove the oldest circle from the list
+            # Kui rohkem kui 10 ringi, eemalda vanim
+            if len(circles) > MAX_CIRCLES:     # Kontrollime, kas ringe on liiga palju
+                circles.pop(0)                 # Kustutame vanima ringi
 
-    for c in circles:  # loop through every circle
-        c[0] += c[4]  # move circle horizontally: x += dx
-        c[1] += c[5]  # move circle vertically:   y += dy
+    # Joonista taust ja ringid
+    screen.fill(LIGHT_BLUE)        # Täidame ekraani helesinise värviga
 
-        if c[0] - c[2] < 0:  # if the left edge of the circle goes past the left wall
-            c[0] = c[2]  # push circle back so it touches the left wall
-            c[4] = abs(c[4])  # reverse direction to move right
+    for c in circles:              # Käime läbi kõik ringid
+        pygame.draw.circle(        # Joonistame ringi
+            screen,                # Millisele pinnale
+            c[3],                  # Värv
+            (int(c[0]), int(c[1])),# Keskpunkt (x, y)
+            int(c[2]),             # Raadius
+            2                      # Joone paksus (2 pikslit)
+        )
 
-        elif c[0] + c[2] > screenX:  # if the right edge goes past the right wall
-            c[0] = screenX - c[2]  # push circle back so it touches the right wall
-            c[4] = -abs(c[4])  # reverse direction to move left
+    pygame.display.flip()          # Uuendame ekraani (näitame joonistatud asju)
 
-        if c[1] - c[2] < 0:  # if the top edge of the circle goes past the top wall
-            c[1] = c[2]  # push circle back so it touches the top wall
-            c[5] = abs(c[5])  # reverse direction to move downward
-
-        elif c[1] + c[2] > screenY:  # if the bottom edge goes past the bottom wall
-            c[1] = screenY - c[2]  # push circle back so it touches the bottom wall
-            c[5] = -abs(c[5])  # reverse direction to move upward
-
-    # Draw
-    screen.fill(lBlue)  # clear the screen with the light blue background color
-    for c in circles:  # loop through every circle to draw it
-        pygame.draw.circle(screen, c[3], (int(c[0]), int(c[1])), c[2], 2)  # draw circle outline with width 2
-
-    pygame.display.flip()  # update the display to show everything drawn this frame
-
-pygame.quit()  # shut down all pygame modules when the loop ends
+pygame.quit()                      # Lõpetame pygame'i töö
