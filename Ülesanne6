@@ -1,5 +1,77 @@
-import pygame, random  # Import pygame library for the game and random for random numbers
+import pygame, random, os  # Import pygame library for the game and random for random numbers
+import numpy as np  # Import numpy for generating sound wave data
+
 pygame.init()  # Initialize all pygame modules
+
+
+# =====================
+# HELIEFEKTID / SOUND EFFECTS (numpy abil genereeritud)
+# =====================
+def generate_sound(frequency, duration, volume=0.5, wave_type="sine", sample_rate=44100):
+    """
+    Genereerib helilaine numpy abil ja tagastab pygame.Sound objekti.
+
+    Parameetrid:
+        frequency  – heli sagedus Hz (kõrgem = kõrgemat tooni)
+        duration   – kestus sekundites
+        volume     – helitugevus 0.0 kuni 1.0
+        wave_type  – lainekuju: "sine" | "square" | "noise"
+        sample_rate – proovivõtusagedus (vaikimisi 44100 Hz)
+    """
+    t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+
+    if wave_type == "sine":
+        wave = np.sin(2 * np.pi * frequency * t)
+    elif wave_type == "square":
+        wave = np.sign(np.sin(2 * np.pi * frequency * t))
+    elif wave_type == "noise":
+        wave = np.random.uniform(-1, 1, len(t))
+        envelope = np.exp(-t * 8)  # Kahanev amplituud aja jooksul
+        wave *= envelope
+    else:
+        wave = np.sin(2 * np.pi * frequency * t)
+
+    # Kahanev amplituud (fade-out) – vältimaks klikke lõpus
+    fade_samples = int(sample_rate * min(0.01, duration * 0.1))
+    if fade_samples > 0:
+        wave[-fade_samples:] *= np.linspace(1, 0, fade_samples)
+
+    # Teisenda 16-bitiseks stereo-arrayx
+    wave = (wave * volume * 32767).astype(np.int16)
+    stereo = np.column_stack([wave, wave])  # Mono → stereo
+    return pygame.sndarray.make_sound(stereo)
+
+
+def generate_gameover_sound(sample_rate=44100):
+    """
+    Genereerib kahaneva tooniga 'game over' heli (kolm langusnoodis).
+    Kasutab numpy sine-laineid, mis sulanduvad kokku üheks helifailiks.
+    """
+    duration = 0.25
+    freqs = [400, 300, 200]  # Kolm kahanevat tooni
+    parts = []
+    for freq in freqs:
+        t = np.linspace(0, duration, int(sample_rate * duration), endpoint=False)
+        wave = np.sin(2 * np.pi * freq * t)
+        envelope = np.linspace(1, 0, len(t))
+        wave *= envelope
+        parts.append(wave)
+
+    # Ühenda kolm osa järjestikku
+    full_wave = np.concatenate(parts)
+    full_wave = np.clip(full_wave * 0.6 * 32767, -32768, 32767).astype(np.int16)  # type: ignore
+    stereo = np.column_stack([full_wave, full_wave])
+    return pygame.sndarray.make_sound(stereo)
+
+
+# Initsialiseeri helimiksija enne helide genereerimist
+pygame.mixer.pre_init(44100, -16, 2, 512)
+pygame.mixer.init()
+
+# Loo kõik heliefektid numpy abil
+sound_wall     = generate_sound(440, 0.08, volume=0.4, wave_type="square")  # Põrge seinast (terav 'bip')
+sound_pad      = generate_sound(600, 0.10, volume=0.5, wave_type="sine")    # Põrge deskalt (kõrgem toon)
+sound_gameover = generate_gameover_sound()                                   # Mäng läbi (kahanev meloodia)
 
 # Settings
 screenX = 640  # Window width in pixels
@@ -11,30 +83,25 @@ bgImage = pygame.image.load("mem.png")  # Load the background image from file
 bgImage = pygame.transform.scale(bgImage, [screenX, screenY])  # Scale background to fit the window
 
 # Background music
-try:  # Try to load and play the background music
-    pygame.mixer.pre_init(44100, -16, 2, 512)  # Set audio parameters before initialization
-    pygame.mixer.init()  # Initialize the sound module
-    pygame.mixer.music.load("music.mp3")  # Load the background music file
-    pygame.mixer.music.play(-1)  # Play music in an infinite loop (-1 means repeat forever)
+music_loaded = False  # Flag to track if music was loaded successfully
+try:  # Try to load the background music file
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    music_path = os.path.join(script_dir, "music.mp3.mp3")
+    print("Trying to load music from:", music_path)
+    print("File exists:", os.path.exists(music_path))
+    pygame.mixer.music.load(music_path)  # Load the background music file
+    music_loaded = True  # Mark music as loaded successfully
+    print("Music loaded successfully!")
 except Exception as e:  # If an error occurred while loading music
     print("Music error:", e)  # Print the error message to the console
 
-# Ball speed
-ballSpeedX = 4  # Ball horizontal speed (pixels per frame)
-ballSpeedY = 4  # Ball vertical speed (pixels per frame)
-
-# Ball position
-ballX = random.randint(20, screenX - 20)  # Random starting X position for the ball
-ballY = 50  # Starting Y position for the ball (near the top)
-
-# Pad position
-padX = screenX // 2  # Paddle starting X position (center of screen)
+# Pad Y position (fixed, does not reset between games)
 padY = screenY // 1.5  # Paddle starting Y position (lower third of screen)
-padSpeed = 6  # Paddle movement speed (pixels per frame)
+padSpeed = 6           # Paddle movement speed (pixels per frame)
 
-# Score
-score = 0  # Initialize player score to zero
-font = pygame.font.SysFont(None, 36)  # Create a font object with size 36 for rendering text
+# Font for rendering text
+font = pygame.font.SysFont(None, 27)   # Regular font size 36
+font_hint = pygame.font.SysFont(None, 24)  # Smaller font for hint text
 
 # Load images
 ballImage = pygame.image.load("ball.png")  # Load the ball image from file
@@ -43,65 +110,141 @@ ballImage = pygame.transform.scale(ballImage, [20, 20])  # Scale ball image to 2
 padImage = pygame.image.load("pad.png")  # Load the paddle image from file
 padImage = pygame.transform.scale(padImage, [120, 20])  # Scale paddle image to 120x20 pixels
 
-# Rect objects
-ball = pygame.Rect(ballX, ballY, 20, 20)  # Create a rectangle for the ball (used for collision)
-pad  = pygame.Rect(padX, int(padY), 120, 20)  # Create a rectangle for the paddle (used for collision)
+MAX_SPEED = 6.0  # Maximum ball speed limit
 
-gameover = False  # Set game over flag to False to start the game loop
-while not gameover:  # Main game loop — runs until gameover becomes True
-    clock.tick(60)  # Limit the game to 60 frames per second
+# =====================
+# OUTER LOOP — restarts the game when player presses R
+# =====================
+play_again = True  # Controls whether to start another round
+while play_again:
 
-    for event in pygame.event.get():  # Loop through all events in the event queue
-        if event.type == pygame.QUIT:  # If the user closed the window
-            gameover = True  # Set game over flag to exit the loop
+    # ---- Reset all game variables for a new round ----
+    ballX = random.randint(20, screenX - 20)  # Random starting X position for the ball
+    ballY = 50        # Reset ball to top of screen
+    ballSpeedX = 5    # Reset horizontal speed
+    ballSpeedY = 5    # Reset vertical speed
+    padX = screenX // 2  # Reset paddle to center of screen
+    score = 0         # Reset score to zero
 
-    # Pad controls
-    keys = pygame.key.get_pressed()  # Get the state of all keyboard keys
-    if keys[pygame.K_LEFT] and pad.left > 0:  # If LEFT arrow is pressed and paddle is not at left edge
-        padX -= padSpeed  # Move paddle to the left
-    if keys[pygame.K_RIGHT] and pad.right < screenX:  # If RIGHT arrow is pressed and paddle is not at right edge
-        padX += padSpeed  # Move paddle to the right
+    ball = pygame.Rect(ballX, ballY, 20, 20)          # Reset ball rectangle
+    pad = pygame.Rect(padX, int(padY), 120, 20)       # Reset paddle rectangle
 
-    # Update positions
-    ballX += ballSpeedX  # Update ball X position by its horizontal speed
-    ballY += ballSpeedY  # Update ball Y position by its vertical speed
+    if music_loaded:  # Start music only if it was loaded successfully
+        pygame.mixer.music.play(-1)  # Play music in an infinite loop
 
-    ball = pygame.Rect(ballX, ballY, 20, 20)  # Recreate ball rectangle with updated position
-    pad  = pygame.Rect(padX, int(padY), 120, 20)  # Recreate paddle rectangle with updated position
+    # =====================
+    # INNER LOOP — main game loop for one round
+    # =====================
+    gameover = False  # Set game over flag to False to start the game loop
+    while not gameover:  # Main game loop — runs until gameover becomes True
+        clock.tick(60)  # Limit the game to 60 frames per second
 
-    # Bounce off left and right walls
-    if ballX > screenX - 20 or ballX < 0:  # If ball hits the right or left wall
-        ballSpeedX = -ballSpeedX  # Reverse horizontal direction
+        for event in pygame.event.get():  # Loop through all events in the event queue
+            if event.type == pygame.QUIT:  # If the user closed the window
+                play_again = False  # Exit outer loop too
+                gameover = True     # Exit inner loop
 
-    # Bounce off top wall
-    if ballY < 0:  # If ball hits the top wall
-        ballSpeedY = -ballSpeedY  # Reverse vertical direction
+        # Pad controls
+        keys = pygame.key.get_pressed()  # Get the state of all keyboard keys
+        if keys[pygame.K_LEFT] and pad.left > 0:   # If LEFT arrow pressed and not at left edge
+            padX -= padSpeed  # Move paddle to the left
+        if keys[pygame.K_RIGHT] and pad.right < screenX:  # If RIGHT arrow pressed and not at right edge
+            padX += padSpeed  # Move paddle to the right
 
-    # Ball fell down — game over
-    if ballY > screenY:  # If ball goes below the bottom of the screen
-        gameover = True  # Set game over flag
+        # Update positions
+        ballX += ballSpeedX  # Update ball X position by its horizontal speed
+        ballY += ballSpeedY  # Update ball Y position by its vertical speed
 
-    # Collision between ball and pad
-    if ball.colliderect(pad) and ballSpeedY > 0:  # If ball hits the paddle while moving downward
-        ballSpeedY = -ballSpeedY  # Reverse ball vertical direction (bounce up)
-        score += 1  # Increase the score by 1
+        ball = pygame.Rect(ballX, ballY, 20, 20)        # Recreate ball rectangle with updated position
+        pad = pygame.Rect(padX, int(padY), 120, 20)     # Recreate paddle rectangle with updated position
 
-    # Draw everything
-    screen.blit(bgImage, (0, 0))  # Draw the background image at the top-left corner
-    screen.blit(ballImage, ball)  # Draw the ball image at the ball's current position
-    screen.blit(padImage, pad)  # Draw the paddle image at the paddle's current position
+        # Bounce off left and right walls
+        if ballX > screenX - 20:
+            ballX = screenX - 20           # Keep ball inside screen
+            ballSpeedX = -abs(ballSpeedX)  # Always bounce left
+            sound_wall.play()              # Play wall bounce sound
+        elif ballX < 0:
+            ballX = 0                      # Keep ball inside screen
+            ballSpeedX = abs(ballSpeedX)   # Always bounce right
+            sound_wall.play()              # Play wall bounce sound
 
-    # Show score on screen
-    scoreText = font.render("Score: " + str(score), True, (0, 0, 102))  # Render score text in dark blue
-    screen.blit(scoreText, (10, 10))  # Draw the score text at the top-left corner
+        # Bounce off top wall
+        if ballY < 0:
+            ballY = 0                      # Keep ball inside screen
+            ballSpeedY = abs(ballSpeedY)   # Always bounce down
+            sound_wall.play()              # Play wall bounce sound
 
-    pygame.display.flip()  # Update the full display surface to the screen
+        # Collision between ball and pad
+        if ball.colliderect(pad) and ballSpeedY > 0:  # If ball hits paddle while moving downward
+            ballSpeedY = -ballSpeedY  # Reverse ball vertical direction (bounce up)
+            score += 1                # Increase the score by 1
+            sound_pad.play()          # Play pad bounce sound
 
-# Game over screen
-screen.fill((0, 0, 0))  # Fill the screen with black color
-gameoverText = font.render("Game Over! Score: " + str(score), True, (255, 255, 255))  # Render white game over text
-screen.blit(gameoverText, (screenX // 2 - 150, screenY // 2))  # Draw game over text in the center of screen
-pygame.display.flip()  # Update the display to show the game over screen
-pygame.time.wait(3000)  # Wait 3 seconds before closing the window
+        # Limit max speed
+        if abs(ballSpeedX) > MAX_SPEED:
+            ballSpeedX = MAX_SPEED if ballSpeedX > 0 else -MAX_SPEED
+        if abs(ballSpeedY) > MAX_SPEED:
+            ballSpeedY = MAX_SPEED if ballSpeedY > 0 else -MAX_SPEED
+
+        # Ball fell down — game over
+        if ballY > screenY:  # If ball goes below the bottom of the screen
+            pygame.mixer.music.stop()  # Stop background music
+            sound_gameover.play()      # Play game over sound
+            gameover = True            # Set game over flag
+
+        # Draw everything
+        screen.blit(bgImage, (0, 0))   # Draw the background image at the top-left corner
+        screen.blit(ballImage, ball)    # Draw the ball image at the ball's current position
+        screen.blit(padImage, pad)      # Draw the paddle image at the paddle's current position
+
+        # Show score on screen
+        scoreText = font.render("Score: " + str(score), True, (0, 0, 102))  # Render score text in dark blue
+        screen.blit(scoreText, (10, 10))  # Draw the score text at the top-left corner
+
+        pygame.display.flip()  # Update the full display surface to the screen
+
+    # =====================
+    # GAME OVER SCREEN — shown after ball falls down
+    # =====================
+    if not play_again:  # If player closed the window, skip game over screen
+        break
+
+    pygame.time.wait(800)  # Wait for game over sound to finish before showing screen
+
+    # Draw game over screen with R button prompt
+    waiting = True  # Wait for player input on game over screen
+    while waiting:
+        screen.fill((0, 0, 0))  # Fill the screen with black color
+
+        # Game over title
+        gameoverText = font.render("Game Over! Score: " + str(score), True, (255, 255, 255))
+        screen.blit(gameoverText, (screenX // 2 - gameoverText.get_width() // 2, screenY // 2 - 40))
+
+        # Draw R button — play again
+        btn_rect = pygame.Rect(screenX // 2 - 80, screenY // 2 + 15, 160, 45)  # Button rectangle
+        pygame.draw.rect(screen, (0, 180, 0), btn_rect, border_radius=15)       # Green filled button
+        pygame.draw.rect(screen, (255, 255, 255), btn_rect, 2, border_radius=10) # White border
+        btn_text = font.render("R - Play Again", True, (255, 255, 255))   # Button label
+        screen.blit(btn_text, (btn_rect.x + btn_rect.width // 2 - btn_text.get_width() // 2,
+                               btn_rect.y + btn_rect.height // 2 - btn_text.get_height() // 2))
+
+        # Hint to close
+        hint_text = font_hint.render("ESC — quit", True, (160, 160, 160))  # Small hint text
+        screen.blit(hint_text, (screenX // 2 - hint_text.get_width() // 2, screenY // 2 + 70))
+
+        pygame.display.flip()  # Update the display to show the game over screen
+
+        # Wait for R or ESC key press
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:  # Window closed
+                waiting = False
+                play_again = False
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:    # R — restart the game
+                    waiting = False            # Exit game over screen loop
+                    play_again = True          # Trigger outer loop for new game
+                if event.key == pygame.K_ESCAPE:  # ESC — quit
+                    waiting = False
+                    play_again = False
 
 pygame.quit()  # Uninitialize all pygame modules and close the window
