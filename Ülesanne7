@@ -1,62 +1,62 @@
-import pygame          # Impordime pygame mooduli, et saaksime mängu teha
-import random          # Impordime random mooduli, et saaksime juhuslikke väärtusi
+import pygame  # Import the pygame module to create the game
+import random  # Import the random module to generate random values
 
-pygame.init()          # Käivitame pygame'i
+pygame.init()  # Initialize pygame
 
-# Värvid
-LIGHT_BLUE = (153, 204, 255)   # Määrame tausta värvi (helesinine)
+# Colors
+LIGHT_BLUE = (153, 204, 255)  # Define the background color (light blue)
 
-# Ekraani seaded
-SCREEN_WIDTH = 640             # Määrame akna laiuse
-SCREEN_HEIGHT = 480            # Määrame akna kõrguse
-screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])  # Loome mängu akna
-pygame.display.set_caption("Hiir - Kliki ja loo ringe!")         # Paneme aknale pealkirja
-clock = pygame.time.Clock()    # Loome kella, et kontrollida mängu kiirust
+# Screen settings
+SCREEN_WIDTH = 640  # Set the width of the game window
+SCREEN_HEIGHT = 480  # Set the height of the game window
+screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])  # Create the game window
+pygame.display.set_caption("Mouse - Click to create circles!")  # Set the window title
+clock = pygame.time.Clock()  # Create a clock to control the game speed
 
-# Ringide nimekiri: [x, y, radius, color]
-circles = []                   # Tühi nimekiri, kuhu salvestame kõik ringid
-MAX_CIRCLES = 10               # Maksimaalne ringide arv korraga
+# List of circles: [x, y, radius, color]
+circles = []  # Empty list to store all circles
+MAX_CIRCLES = 10  # Maximum number of circles on screen at once
 
-running = True                 # Muutuja, mis hoiab mängu töös
-while running:                 # Põhiloop, mis töötab seni kuni mäng pole lõpetatud
-    clock.tick(60)             # Piirame mängu kiirust 60 kaadrini sekundis
+running = True  # Variable that keeps the game running
+while running:  # Main game loop - runs until the game is closed
+    clock.tick(60)  # Limit the game to 60 frames per second
 
-    for event in pygame.event.get():   # Kontrollime kõiki sündmusi (kliki, sulgemine jne)
-        if event.type == pygame.QUIT:  # Kui kasutaja vajutab akna ristile
-            running = False            # Lõpetame mängu
+    for event in pygame.event.get():  # Check all events (clicks, closing window, etc.)
+        if event.type == pygame.QUIT:  # If the user clicks the close button (X)
+            running = False  # Stop the game
 
-        if event.type == pygame.MOUSEBUTTONDOWN:  # Kui hiirega klikitakse
-            x, y = event.pos                  # Saame kliki koordinaadid
+        if event.type == pygame.MOUSEBUTTONDOWN:  # If the mouse button is pressed
+            x, y = event.pos  # Get the mouse click coordinates
 
-            # Juhuslik värv
-            color = (                         # Loome juhusliku värvi
-                random.randint(30, 220),      # Punane komponent
-                random.randint(30, 220),      # Roheline komponent
-                random.randint(30, 220)       # Sinine komponent
+            # Random color
+            color = (  # Create a random color
+                random.randint(30, 220),  # Red component
+                random.randint(30, 220),  # Green component
+                random.randint(30, 220)  # Blue component
             )
-            
-            # Juhuslik raadius vahemikus 10–60 pikslit
-            radius = random.randint(10, 60)   # Iga ring on erineva suurusega
 
-            # Lisa ring
-            circles.append([x, y, radius, color])  # Lisame uue ringi nimekirja
+            # Random radius between 10 and 60 pixels
+            radius = random.randint(10, 60)  # Each circle has different size
 
-            # Kui rohkem kui 10 ringi, eemalda vanim
-            if len(circles) > MAX_CIRCLES:     # Kontrollime, kas ringe on liiga palju
-                circles.pop(0)                 # Kustutame vanima ringi
+            # Add the new circle to the list
+            circles.append([x, y, radius, color])  # Add circle [x, y, radius, color]
 
-    # Joonista taust ja ringid
-    screen.fill(LIGHT_BLUE)        # Täidame ekraani helesinise värviga
+            # If more than 10 circles, remove the oldest one
+            if len(circles) > MAX_CIRCLES:  # Check if there are too many circles
+                circles.pop(0)  # Remove the oldest circle
 
-    for c in circles:              # Käime läbi kõik ringid
-        pygame.draw.circle(        # Joonistame ringi
-            screen,                # Millisele pinnale
-            c[3],                  # Värv
-            (int(c[0]), int(c[1])),# Keskpunkt (x, y)
-            int(c[2]),             # Raadius
-            2                      # Joone paksus (2 pikslit)
+    # Draw everything
+    screen.fill(LIGHT_BLUE)  # Fill the screen with light blue color
+
+    for c in circles:  # Loop through all circles
+        pygame.draw.circle(  # Draw a circle
+            screen,  # On which surface
+            c[3],  # Color
+            (int(c[0]), int(c[1])),  # Center position (x, y)
+            int(c[2]),  # Radius
+            2  # Border thickness (2 pixels)
         )
 
-    pygame.display.flip()          # Uuendame ekraani (näitame joonistatud asju)
+    pygame.display.flip()  # Update the screen to show changes
 
-pygame.quit()                      # Lõpetame pygame'i töö
+pygame.quit()  # Quit pygame when the game ends
