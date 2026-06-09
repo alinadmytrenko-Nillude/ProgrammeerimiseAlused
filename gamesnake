@@ -1,0 +1,241 @@
+import pygame
+import random
+
+pygame.init()
+
+# Colors
+BLACK  = (0, 0, 0)
+WHITE  = (255, 255, 255)
+YELLOW = (255, 220, 0)
+RED    = (213, 50, 80)
+GREEN  = (0, 210, 0)
+GRAY   = (80, 80, 80)
+BLUE   = (100, 220, 255)
+
+# Grid settings
+snake_block = 40
+grid_cols   = 16
+grid_rows   = 12
+dis_width   = grid_cols * snake_block   # 640
+dis_height  = grid_rows * snake_block   # 480
+
+dis = pygame.display.set_mode((dis_width, dis_height))
+pygame.display.set_caption('Snake Game')
+clock = pygame.time.Clock()
+snake_speed = 5
+
+# Fonts
+font_title  = pygame.font.SysFont("bahnschrift", 52, bold=True)
+font_big    = pygame.font.SysFont("bahnschrift", 36, bold=True)
+font_medium = pygame.font.SysFont("bahnschrift", 24)
+font_small  = pygame.font.SysFont("bahnschrift", 18)
+
+# High scores (top-5)
+high_scores = []
+
+def draw_grid():
+    for x in range(0, dis_width, snake_block):
+        pygame.draw.line(dis, (30, 30, 30), (x, 0), (x, dis_height), 1)
+    for y in range(0, dis_height, snake_block):
+        pygame.draw.line(dis, (30, 30, 30), (0, y), (dis_width, y), 1)
+
+def draw_snake(snake_list, color):
+    for seg in snake_list:
+        pygame.draw.rect(dis, color, [seg[0]+2, seg[1]+2, snake_block-4, snake_block-4])
+
+def draw_text_centered(text, font, color, y):
+    surf = font.render(text, True, color)
+    rect = surf.get_rect(center=(dis_width // 2, y))
+    dis.blit(surf, rect)
+
+def draw_text_left(text, font, color, x, y):
+    surf = font.render(text, True, color)
+    dis.blit(surf, (x, y))
+
+# ─────────────────── MENU ───────────────────
+def show_menu():
+    global high_scores
+    while True:
+        dis.fill(BLACK)
+
+        draw_text_centered("SNAKE  GAME", font_title, GREEN, 60)
+        draw_text_centered("Press  SPACE  to  play", font_big, BLUE, 140)
+
+        # Controls hint
+        hint = "Arrow keys - move   |   ESC - quit"
+        draw_text_centered(hint, font_small, GRAY, 185)
+
+        # High scores
+        draw_text_centered("HIGH  SCORES:", font_big, YELLOW, 240)
+        if high_scores:
+            for i, sc in enumerate(high_scores[:5]):
+                draw_text_centered(f"{i+1}.  {sc} points", font_medium, YELLOW, 285 + i * 36)
+        else:
+            draw_text_centered("No scores yet", font_medium, GRAY, 285)
+
+        pygame.display.update()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_SPACE:
+                    return   # start game
+                if event.key == pygame.K_ESCAPE:
+                    pygame.quit(); quit()
+
+        clock.tick(30)
+
+# ─────────────────── GAME OVER ───────────────────
+def show_game_over(score):
+    global high_scores
+    best = max(high_scores) if high_scores else 0
+
+    # Flash the snake red — just show the screen with a flashing title
+    flash_timer = 0
+    show_red = True
+    wait = True
+    while wait:
+        dis.fill(BLACK)
+
+        # Flashing "GAME OVER!"
+        flash_timer += 1
+        if flash_timer % 20 == 0:
+            show_red = not show_red
+        title_color = RED if show_red else WHITE
+        draw_text_centered("GAME  OVER!", font_title, title_color, 130)
+
+        draw_text_centered(f"Your score:  {score}  points", font_big, WHITE, 220)
+        draw_text_centered(f"Best score:  {best}  points", font_big, YELLOW, 268)
+
+        draw_text_centered("R - play again    |    ESC - menu", font_medium, BLUE, 360)
+
+        pygame.display.update()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_r:
+                    return 'restart'
+                if event.key == pygame.K_ESCAPE:
+                    return 'menu'
+
+        clock.tick(30)
+
+# ─────────────────── MAIN GAME ───────────────────
+def gameLoop():
+    global high_scores
+
+    x1 = (grid_cols // 2) * snake_block
+    y1 = (grid_rows // 2) * snake_block
+
+    direction  = 'RIGHT'
+    change_to  = direction
+
+    snake_List       = []
+    Length_of_snake  = 1
+
+    foodx = random.randrange(0, grid_cols) * snake_block
+    foody = random.randrange(0, grid_rows) * snake_block
+
+    game_close = False
+    blink_timer = 0
+    blink_red   = False
+
+    while True:
+        # ── Game Over: blink snake red ──
+        if game_close:
+            blink_timer += 1
+            if blink_timer % 10 == 0:
+                blink_red = not blink_red
+
+            dis.fill(BLACK)
+            draw_grid()
+            snake_color = RED if blink_red else GREEN
+            draw_snake(snake_List, snake_color)
+            pygame.display.update()
+
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit(); quit()
+                # After ~1.5 sec of blinking, go to game over screen
+            if blink_timer > 45:
+                score = Length_of_snake - 1
+                high_scores.append(score)
+                high_scores.sort(reverse=True)
+                high_scores = high_scores[:5]
+                result = show_game_over(score)
+                if result == 'restart':
+                    gameLoop()
+                else:
+                    show_menu()
+                    gameLoop()
+                return
+
+            clock.tick(30)
+            continue
+
+        # ── Input ──
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit(); quit()
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_LEFT:   change_to = 'LEFT'
+                elif event.key == pygame.K_RIGHT: change_to = 'RIGHT'
+                elif event.key == pygame.K_UP:    change_to = 'UP'
+                elif event.key == pygame.K_DOWN:  change_to = 'DOWN'
+                elif event.key == pygame.K_ESCAPE:
+                    show_menu(); gameLoop(); return
+
+        # Prevent reversal
+        if change_to == 'UP'    and direction != 'DOWN':  direction = 'UP'
+        elif change_to == 'DOWN'  and direction != 'UP':  direction = 'DOWN'
+        elif change_to == 'LEFT'  and direction != 'RIGHT': direction = 'LEFT'
+        elif change_to == 'RIGHT' and direction != 'LEFT':  direction = 'RIGHT'
+
+        # Move
+        if direction == 'UP':    y1 -= snake_block
+        elif direction == 'DOWN':  y1 += snake_block
+        elif direction == 'LEFT':  x1 -= snake_block
+        elif direction == 'RIGHT': x1 += snake_block
+
+        # Wall collision
+        if x1 >= dis_width or x1 < 0 or y1 >= dis_height or y1 < 0:
+            game_close = True
+
+        # Draw
+        dis.fill(BLACK)
+        draw_grid()
+        pygame.draw.rect(dis, RED, [foodx+4, foody+4, snake_block-8, snake_block-8])
+
+        snake_Head = [x1, y1]
+        snake_List.append(snake_Head)
+        if len(snake_List) > Length_of_snake:
+            del snake_List[0]
+
+        # Self collision
+        for seg in snake_List[:-1]:
+            if seg == snake_Head:
+                game_close = True
+
+        draw_snake(snake_List, GREEN)
+
+        # Score
+        score_surf = font_medium.render(f"Score: {Length_of_snake - 1}", True, YELLOW)
+        dis.blit(score_surf, (8, 6))
+
+        pygame.display.update()
+
+        # Eat food
+        if x1 == foodx and y1 == foody:
+            foodx = random.randrange(0, grid_cols) * snake_block
+            foody = random.randrange(0, grid_rows) * snake_block
+            Length_of_snake += 1
+
+        clock.tick(snake_speed)
+
+
+# ── Start ──
+show_menu()
+gameLoop()
