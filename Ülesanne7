@@ -1,62 +1,63 @@
-import pygame  # Import the pygame module to create the game
-import random  # Import the random module to generate random values
+import pygame   # Import the pygame module to create the game
+import random   # Import the random module to generate random values
 
-pygame.init()  # Initialize pygame
+pygame.init()   # Initialize pygame
 
 # Colors
 LIGHT_BLUE = (153, 204, 255)  # Define the background color (light blue)
 
 # Screen settings
-SCREEN_WIDTH = 640  # Set the width of the game window
+SCREEN_WIDTH = 640   # Set the width of the game window
 SCREEN_HEIGHT = 480  # Set the height of the game window
 screen = pygame.display.set_mode([SCREEN_WIDTH, SCREEN_HEIGHT])  # Create the game window
-pygame.display.set_caption("Mouse - Click to create circles!")  # Set the window title
+pygame.display.set_caption("Mouse - Click to create circles!")   # Set the window title
 clock = pygame.time.Clock()  # Create a clock to control the game speed
 
 # List of circles: [x, y, radius, color]
-circles = []  # Empty list to store all circles
-MAX_CIRCLES = 10  # Maximum number of circles on screen at once
+circles = []         # Empty list to store all circles
+MAX_CIRCLES = 10     # Maximum number of circles on screen at once
 
-running = True  # Variable that keeps the game running
-while running:  # Main game loop - runs until the game is closed
-    clock.tick(60)  # Limit the game to 60 frames per second
+running = True       # Variable that keeps the game running
 
-    for event in pygame.event.get():  # Check all events (clicks, closing window, etc.)
+while running:       # Main game loop - runs until the game is closed
+    clock.tick(60)   # Limit the game to 60 frames per second
+
+    for event in pygame.event.get():   # Check all events (clicks, closing window, etc.)
         if event.type == pygame.QUIT:  # If the user clicks the close button (X)
-            running = False  # Stop the game
+            running = False            # Stop the game
 
         if event.type == pygame.MOUSEBUTTONDOWN:  # If the mouse button is pressed
-            x, y = event.pos  # Get the mouse click coordinates
+            x, y = event.pos                  # Get the mouse click coordinates
 
-            # Random color
-            color = (  # Create a random color
-                random.randint(30, 220),  # Red component
-                random.randint(30, 220),  # Green component
-                random.randint(30, 220)  # Blue component
+            # Remove the oldest circle if we already have maximum number
+            if len(circles) >= MAX_CIRCLES:
+                circles.pop(0)                # Remove the oldest circle
+
+            # Calculate radius - smallest on first click, then BIGGER with each click
+            radius = 15 + len(circles) * 5    # Size increases with each new circle (15 → ~60)
+
+            # Random color for each circle
+            color = (                         # Create a random color
+                random.randint(30, 220),      # Red component
+                random.randint(30, 220),      # Green component
+                random.randint(30, 220)       # Blue component
             )
-
-            # Random radius between 10 and 60 pixels
-            radius = random.randint(10, 60)  # Each circle has different size
 
             # Add the new circle to the list
             circles.append([x, y, radius, color])  # Add circle [x, y, radius, color]
 
-            # If more than 10 circles, remove the oldest one
-            if len(circles) > MAX_CIRCLES:  # Check if there are too many circles
-                circles.pop(0)  # Remove the oldest circle
-
     # Draw everything
-    screen.fill(LIGHT_BLUE)  # Fill the screen with light blue color
+    screen.fill(LIGHT_BLUE)   # Fill the screen with light blue color (clear previous frame)
 
-    for c in circles:  # Loop through all circles
-        pygame.draw.circle(  # Draw a circle
-            screen,  # On which surface
-            c[3],  # Color
+    for c in circles:         # Loop through all circles
+        pygame.draw.circle(   # Draw a circle
+            screen,           # On which surface
+            c[3],             # Color
             (int(c[0]), int(c[1])),  # Center position (x, y)
-            int(c[2]),  # Radius
-            2  # Border thickness (2 pixels)
+            int(c[2]),        # Radius
+            2                 # Border thickness (2 pixels)
         )
 
-    pygame.display.flip()  # Update the screen to show changes
+    pygame.display.flip()     # Update the screen to show changes
 
-pygame.quit()  # Quit pygame when the game ends
+pygame.quit()                 # Quit pygame when the game ends
