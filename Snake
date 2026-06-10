@@ -2,8 +2,6 @@ import pygame   # PyGame mängumootor
 import random   # Juhuslike arvude generaator
 import json     # JSON-faili lugemiseks/kirjutamiseks
 import os       # Failiteedega töötamiseks
-import math     # Matemaatilised funktsioonid (helilainete genereerimiseks)
-import numpy    # Arvumassiivid (heli genereerimiseks)
 
 # --- MÄNGU SEADISTUSED ---
 # Kõik koordinaadid salvestatakse RUUDUSTIKU ühikutes, mitte pikslites.
@@ -35,40 +33,6 @@ LIGHT_BLUE = (100, 180, 255)   # Menüü tekst
 ORANGE     = (255, 140, 0)     # Feature tekst
 YELLOW     = (255, 255, 0)     # Uue taseme teade
 PAUSE_OVERLAY = (0, 0, 0, 160) # Poolläbipaistev paus-kate
-
-# -----------------------------------------------------------------------
-# HELI GENEREERIMINE (Modification 6)
-# Kasutatakse numpy'ga sünteesitud lained - välisel helifailil pole vaja
-# -----------------------------------------------------------------------
-
-def make_beep(freq=440, duration=0.08, volume=0.3, sample_rate=44100):
-    """
-    Genereerib lühikese beep-heli antud sagedusega.
-    freq     - heli sagedus Hz (kõrgem = kõrgem toon)
-    duration - heli kestus sekundites
-    volume   - helitugevus 0.0 kuni 1.0
-    """
-    frames = int(sample_rate * duration)  # Kaadrite arv
-    t = numpy.linspace(0, duration, frames, False)  # Ajatelg
-    wave = numpy.sin(2 * math.pi * freq * t)        # Sinuslaine
-    # Fade out - heli vaibub lõpus sujuvalt (vältib klikke)
-    fade = numpy.linspace(1.0, 0.0, frames)
-    wave = (wave * fade * volume * 32767).astype(numpy.int16)  # 16-bit PCM
-    stereo = numpy.column_stack([wave, wave])  # Stereo (vasak + parem kanal)
-    return pygame.sndarray.make_sound(stereo)  # Loo PyGame heliobj
-
-def init_sounds():
-    """
-    Initsialiseeri kõik mängus kasutatavad helid.
-    Tagastab sõnastiku {'eat', 'bonus', 'die', 'level'}.
-    """
-    pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
-    return {
-        'eat':   make_beep(freq=600,  duration=0.07, volume=0.25),  # Söömisel
-        'bonus': make_beep(freq=900,  duration=0.12, volume=0.30),  # Boonusvili
-        'die':   make_beep(freq=150,  duration=0.35, volume=0.40),  # Suremisel
-        'level': make_beep(freq=1000, duration=0.18, volume=0.30),  # Uus tase
-    }
 
 # -----------------------------------------------------------------------
 # RUUDUSTIKU <-> PIKSLI TEISENDUS
@@ -224,31 +188,15 @@ def main():
     pygame.display.set_caption("Snake Game")           # Akna pealkiri
     clock = pygame.time.Clock()  # Ajamõõtja FPS kontrollimiseks
 
-    # Helide initsialiseerimine (Modification 6)
-    try:
-        sounds = init_sounds()   # Proovi genereerida helid
-    except Exception:
-        sounds = {}              # Kui numpy puudub, mäng töötab vaikselt
-
     # Fondid
     font_big   = pygame.font.SysFont("Consolas", 36, bold=True)
     font_mid   = pygame.font.SysFont("Consolas", 22)
     font_small = pygame.font.SysFont("Consolas", 16)
     font_tiny  = pygame.font.SysFont("Consolas", 13)
 
-    def play(name):
-        """Mängib heli nimega 'name', kui see on olemas."""
-        if name in sounds:
-            sounds[name].play()  # Käivita heli
-
     # -------------------------------------------------------------------
     def death_animation(snake, food, obstacles, bonus_pos, bonus_timer,
                         score, level, speed):
-        """
-        Surmaanimatsioon: uss vilgub punaselt 6 korda enne Game Over ekraani.
-        Modification 8: visuaalne tagasiside surmale.
-        """
-        play('die')  # Mängi surmahelisid (Modification 6)
 
         for i in range(6):  # 6 vilkumist
             flash = (i % 2 == 0)           # Paaris = punane, paaritu = normaalne
@@ -359,7 +307,6 @@ def main():
                 score += 10       # +10 punkti
                 eaten += 1        # Söödud loendur kiirenduse jaoks
                 ate = True
-                play('eat')       # Söömisheli (Modification 6)
                 food = spawn_food([new_head] + snake, obstacles, bonus_pos)
 
                 # Modification 2: SPEED-UP - kiirenda iga 5 toidu järel
@@ -369,8 +316,8 @@ def main():
                 # Modification 5: LEVELS - uus tase iga 50 punkti järel
                 new_level = score // 50 + 1
                 if new_level > level:
+
                     level = new_level
-                    play('level')  # Tasemeheli (Modification 6)
                     level_msg = f"LEVEL {level}!"   # Uue taseme teade
                     level_msg_timer = 60             # Näita 60 kaadrit (~1 sek)
                     obstacles = spawn_obstacles(
@@ -387,7 +334,6 @@ def main():
                 bonus_pos   = None  # Eemalda boonusvili
                 bonus_timer = 0
                 ate = True          # Uss kasvab ka boonusviljast
-                play('bonus')       # Boonusheli (Modification 6)
 
             # Uuenda ussi
             snake.insert(0, new_head)  # Lisa uus pea
