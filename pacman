@@ -1,0 +1,420 @@
+
+import random   # juhuslike väärtuste jaoks
+import turtle   # graafilise mänguakna jaoks
+
+MAP = [
+    ['1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1'],  # ülemine sein
+    ['1',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','1'],  # teine rida
+    ['1','B','1','1',' ','1','1','1',' ','1',' ','1','1','1',' ','1','1','B','1'],  # boonused nurkades
+    ['1',' ',' ',' ',' ','1',' ',' ',' ','1',' ',' ',' ','1',' ',' ',' ',' ','1'],  # kolmas rida
+    ['1','1',' ','1',' ','1',' ','1',' ','1',' ','1',' ','1',' ','1',' ','1','1'],  # neljas rida
+    ['1',' ',' ','1',' ',' ',' ','1',' ',' ',' ','1',' ',' ',' ','1',' ',' ','1'],  # viies rida
+    ['1',' ','1','1','1','1',' ','1','1','1','1','1',' ','1','1','1','1',' ','1'],  # kuues rida
+    ['1',' ',' ',' ',' ',' ',' ',' ',' ','r',' ',' ',' ',' ',' ',' ',' ',' ','1'],  # punase kummituse koht
+    ['1','1',' ','1','1','1',' ','1','1','-','1','1',' ','1','1','1',' ','1','1'],  # kummituste tsooni sein
+    [' ',' ',' ',' ',' ','1',' ','1','s','p','o','1',' ','1',' ',' ',' ',' ',' '],  # kummituste tsoon
+    ['1','1',' ','1',' ','1',' ','1','1','1','1','1',' ','1',' ','1',' ','1','1'],  # kümnes rida
+    ['1',' ',' ','1',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','1',' ',' ','1'],  # üheteistkümnes rida
+    ['1',' ','1','1','1','1',' ','1','1','1','1','1',' ','1','1','1','1',' ','1'],  # kaksteistkümnes rida
+    ['1',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','1'],  # kolmeteistkümnes rida
+    ['1','1','1',' ','1','1','1',' ','1','1','1',' ','1','1','1',' ','1','1','1'],  # neljateistkümnes rida
+    ['1',' ',' ',' ','1',' ',' ',' ',' ','P',' ',' ',' ',' ','1',' ',' ',' ','1'],  # mängija alguspositsioon
+    ['1','B','1',' ','1',' ','1',' ','1','1','1',' ','1',' ','1',' ','1','B','1'],  # boonused allnurkades
+    ['1',' ','1',' ',' ',' ','1',' ',' ',' ',' ',' ','1',' ',' ',' ','1',' ','1'],  # seitsmeteistkümnes rida
+    ['1',' ','1','1','1',' ','1','1','1',' ','1','1','1',' ','1','1','1',' ','1'],  # kaheksateistkümnes rida
+    ['1',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ',' ','1'],  # üheksateistkümnes rida
+    ['1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1','1'],  # alumine sein
+]
+
+TILE_SIZE     = 20   # ühe lahtri suurus pikslites
+SCREEN_WIDTH  = 600  # mänguakna laius
+SCREEN_HEIGHT = 600  # mänguakna kõrgus
+
+MAP_WIDTH  = len(MAP[0]) * TILE_SIZE          # kaardi laius pikslites
+MAP_HEIGHT = len(MAP)    * TILE_SIZE          # kaardi kõrgus pikslites
+START_X    = -MAP_WIDTH  // 2                 # kaardi vasak serv ekraanil
+START_Y    =  MAP_HEIGHT // 2 - TILE_SIZE     # kaardi ülemine serv ekraanil
+
+# Kauguse ruut, mille juures kummitus lülitub jälitamisrežiimile — Script 7-st
+CHASE_DISTANCE_SQ = 5500  # ligikaudu 74 pikslit
+
+
+def tile_to_screen(col, row):
+    """Teisendab kaardi lahtri indeksid ekraanikoordinaatideks."""
+    return START_X + col * TILE_SIZE, START_Y - row * TILE_SIZE  # tagastab (x, y)
+
+
+# ---------------------------------------------------------------------------
+# GIF-spraitide registreerimine — võetud Script 7-st (kucukpac.gif, kirmizi.gif)
+# ---------------------------------------------------------------------------
+
+GIF_PACMAN = "kucukpac.gif"  # Pac-Mani GIF-spraidi failinimi
+GIF_GHOST  = "kirmizi.gif"   # kummituse GIF-spraidi failinimi
+
+
+def register_shapes(screen):
+    """Registreerib GIF-spraidid turtle'i ekraanil — Script 7 idee."""
+    screen.register_shape(GIF_PACMAN)  # registreerib Pac-Mani pildi
+    screen.register_shape(GIF_GHOST)   # registreerib kummituse pildi
+
+
+# ---------------------------------------------------------------------------
+# Mängija klass — OOP struktuur Script 7-st, GIF-spraait Script 7-st
+# ---------------------------------------------------------------------------
+class Player(turtle.Turtle):
+    """Pac-Man mängija GIF-spraidiga kucukpac.gif (Script 7)."""
+
+    def __init__(self, x, y):
+        super().__init__()              # turtle.Turtle algväärtustamine
+        self.shape(GIF_PACMAN)          # määrab GIF-pildi kujuks
+        self.penup()                    # ei joonista liikudes joont
+        self.speed(0)                   # kiirim animatsioon
+        self.goto(x, y)                 # liigub alguspositsioonile
+        self.direction = "stop"         # algsuund on peatatud
+
+    def go_up(self):                    # määrab liikumissuunaks üles
+        self.direction = "up"
+
+    def go_down(self):                  # määrab liikumissuunaks alla
+        self.direction = "down"
+
+    def go_left(self):                  # määrab liikumissuunaks vasakule
+        self.direction = "left"
+
+    def go_right(self):                 # määrab liikumissuunaks paremale
+        self.direction = "right"
+
+    def next_position(self):
+        """Arvutab järgmise positsiooni ilma tegeliku liikumiseta."""
+        x, y = self.xcor(), self.ycor()         # praegused koordinaadid
+        if   self.direction == "up":    y += TILE_SIZE   # üles — y suureneb
+        elif self.direction == "down":  y -= TILE_SIZE   # alla — y väheneb
+        elif self.direction == "left":  x -= TILE_SIZE   # vasakule — x väheneb
+        elif self.direction == "right": x += TILE_SIZE   # paremale — x suureneb
+        return x, y                             # tagastab uue positsiooni
+
+    def is_near(self, other):
+        """
+        Kontrollib lähedust kauguse ruudu kaudu ilma aeglase ruutjuureta — Script 7.
+        Tagastab True kui 'other' on lähemal kui CHASE_DISTANCE_SQ.
+        """
+        dx = self.xcor() - other.xcor()         # horisontaalne kaugus
+        dy = self.ycor() - other.ycor()         # vertikaalne kaugus
+        return dx * dx + dy * dy < CHASE_DISTANCE_SQ  # kauguse ruut
+
+
+# ---------------------------------------------------------------------------
+# Kummituse klass — OOP ja jälitamise tehisintellekt Script 7-st, 4 värvi Script 8-st
+# ---------------------------------------------------------------------------
+class Ghost(turtle.Turtle):
+    """
+    Kummitus GIF-spraidiga kirmizi.gif (Script 7).
+    Juhuslik liikumine + mängija jälitamine läheduses (Script 7).
+    Iga kummitus liigub iseseisvalt ontimer kaudu (Script 7).
+    """
+
+    def __init__(self, x, y, color, wall_set, player_ref, speed_ms=200):
+        super().__init__()                      # turtle.Turtle algväärtustamine
+        self.shape(GIF_GHOST)                   # GIF-spraait Script 7-st
+        self.color(color)                       # kummituse värv (punane/roosa/oranž/helesinine)
+        self.penup()                            # ei joonista liikudes joont
+        self.speed(0)                           # kiirim animatsioon
+        self.goto(x, y)                         # liigub alguspositsioonile
+        self.wall_set   = wall_set              # seinte koordinaatide hulk
+        self.player_ref = player_ref            # viide mängijale (jälitamiseks)
+        self.speed_ms   = speed_ms              # liikumise algkiirus millisekundites
+        self.direction  = random.choice(["up", "down", "left", "right"])  # juhuslik algsuund
+        self.active     = True                  # True kui mäng käib
+
+    def move(self):
+        """Üks samm: jälitamine või juhuslik liikumine, seejärel ontimer."""
+        if not self.active:                     # kui mäng on lõppenud, ei liigu
+            return
+
+        px, py = self.player_ref.xcor(), self.player_ref.ycor()  # mängija koordinaadid
+        gx, gy = self.xcor(), self.ycor()       # kummituse praegused koordinaadid
+
+        # Jälitamise tehisintellekt — Script 7: muudab suunda mängija poole kui lähedal
+        if self.player_ref.is_near(self):
+            if   px < gx: self.direction = "left"   # mängija on vasakul
+            elif px > gx: self.direction = "right"  # mängija on paremal
+            elif py > gy: self.direction = "up"     # mängija on üleval
+            else:         self.direction = "down"   # mängija on all
+
+        dx, dy = self._delta(self.direction)    # arvutab nihke praeguse suuna järgi
+        nx, ny = gx + dx, gy + dy              # järgmise sammu koordinaadid
+
+        if (nx, ny) not in self.wall_set:       # kui teel pole seina
+            self.goto(nx, ny)                   # liigub järgmisesse positsioonile
+        else:
+            # Sein ees — valib juhusliku vaba suuna (Script 7)
+            candidates = []                     # vabade suundade loend
+            for d in ("up", "down", "left", "right"):   # kontrollib kõiki suundi
+                ddx, ddy = self._delta(d)       # suuna nihe
+                cx, cy = gx + ddx, gy + ddy    # kontrollitav positsioon
+                if (cx, cy) not in self.wall_set:       # kui sein puudub
+                    candidates.append((d, cx, cy))      # lisab võimalike hulka
+            if candidates:                      # kui vabad suunad olemas
+                self.direction, nx, ny = random.choice(candidates)  # valib juhusliku
+                self.goto(nx, ny)               # liigub valitud suunas
+
+        # Teleportatsioon läbi külgservade — Script 8
+        if   self.xcor() >  190: self.goto(-190, self.ycor())  # paremast servast vasakule
+        elif self.xcor() < -190: self.goto( 190, self.ycor())  # vasakust servast paremale
+
+        # Juhuslik taimer iga sammu jaoks — Script 7: random.randint(100, 300)
+        turtle.ontimer(self.move, t=random.randint(100, 300))  # käivitab järgmise sammu
+
+    @staticmethod
+    def _delta(direction):
+        """Tagastab nihke (dx, dy) antud suuna jaoks."""
+        return {
+            "up":    (0,  TILE_SIZE),   # üles liikumine
+            "down":  (0, -TILE_SIZE),   # alla liikumine
+            "left":  (-TILE_SIZE, 0),   # vasakule liikumine
+            "right": ( TILE_SIZE, 0),   # paremale liikumine
+        }.get(direction, (0, 0))        # tundmatu suund — ei liigu
+
+    def deactivate(self):
+        """Peatab liikumise ja peidab kummituse mängu lõppedes."""
+        self.active = False     # keelab edasise liikumise
+        self.hideturtle()       # peidab kummituse ekraanil
+
+
+# ---------------------------------------------------------------------------
+# Toidu klass — Script 8-st: valge ringike, +10 punkti
+# ---------------------------------------------------------------------------
+class Food(turtle.Turtle):
+    """Tavaline toit — valge ringike, väärt 10 punkti (Script 8)."""
+
+    POINTS = 10  # toidu punktiväärtus
+
+    def __init__(self, x, y):
+        super().__init__()          # turtle.Turtle algväärtustamine
+        self.shape("circle")        # ringikujuline
+        self.color("white")         # valge värv
+        self.shapesize(0.4, 0.4)    # väike suurus
+        self.penup()                # ei joonista joont
+        self.speed(0)               # kiirim animatsioon
+        self.goto(x, y)             # asetab toiduobjekti kaardile
+
+    def destroy(self):
+        """Eemaldab toidu ekraanilt pärast kogumist."""
+        self.goto(2000, 2000)   # liigub ekraanist välja
+        self.hideturtle()       # peidab objekti
+
+
+# ---------------------------------------------------------------------------
+# Boonuse klass — Script 8-st: lilla ringike, +50 punkti
+# ---------------------------------------------------------------------------
+class Bonus(turtle.Turtle):
+    """Boonusese — lilla ringike, väärt 50 punkti (Script 8)."""
+
+    POINTS = 50  # boonuse punktiväärtus
+
+    def __init__(self, x, y):
+        super().__init__()          # turtle.Turtle algväärtustamine
+        self.shape("circle")        # ringikujuline
+        self.color("purple")        # lilla värv
+        self.shapesize(0.75, 0.75)  # veidi suurem kui tavaline toit
+        self.penup()                # ei joonista joont
+        self.speed(0)               # kiirim animatsioon
+        self.goto(x, y)             # asetab boonuse kaardile
+
+    def destroy(self):
+        """Eemaldab boonuse ekraanilt pärast kogumist."""
+        self.goto(2000, 2000)   # liigub ekraanist välja
+        self.hideturtle()       # peidab objekti
+
+
+# ---------------------------------------------------------------------------
+# Tulemustabeli klass — Script 8-st: skoor ekraani vasakus ülanurgas
+# ---------------------------------------------------------------------------
+class ScoreBoard(turtle.Turtle):
+    """Kuvab praegust skoori ekraani vasakus ülanurgas (Script 8)."""
+
+    def __init__(self):
+        super().__init__()      # turtle.Turtle algväärtustamine
+        self.speed(0)           # kiirim animatsioon
+        self.color("white")     # valge tekst mustal taustal
+        self.penup()            # ei joonista joont
+        self.hideturtle()       # peidab kilpkonna ikoonni
+        self.score = 0          # algskoor on null
+        self._draw()            # kuvab skoori kohe alguses
+
+    def add(self, points):
+        """Lisab punktid ja uuendab ekraanil kuvatavat skoori."""
+        self.score += points    # lisab punktid kogusummale
+        self._draw()            # joonistab uuendatud skoori
+
+    def _draw(self):
+        """Kustutab vana skoori ja kirjutab uue."""
+        self.goto(-290, 280)    # liigub vasakusse ülanurka
+        self.clear()            # kustutab eelmise teksti
+        self.write(f"Score: {self.score}", align="left", font=("Arial", 16, "normal"))  # kirjutab skoori
+
+
+# ---------------------------------------------------------------------------
+# Taseme ehitamise funktsioon — loeb MAP-i ja loob kõik objektid
+# ---------------------------------------------------------------------------
+def build_level(map_data):
+    """
+    Loeb MAP-i ja loob seinad, toidu, boonused, kummitused ja mängija.
+    Tagastab: wall_set, player, food_list, bonus_list, ghost_list
+    """
+    wall_set     = set()    # seinte koordinaadid kiireks kontrolliks O(1) — Script 7
+    food_list    = []       # toidu objektide loend
+    bonus_list   = []       # boonuste objektide loend
+    ghost_spawn  = []       # kummituste algusandmete loend (x, y, värv)
+    player_start = (0, 0)   # mängija alguspositsioon
+
+    pen = turtle.Turtle()   # mall seinte kloonimiseks
+    pen.shape("square")     # ruudukujuline sein
+    pen.color("blue")       # sinine värv
+    pen.penup()             # ei joonista joont
+    pen.speed(0)            # kiirim animatsioon
+    pen.hideturtle()        # peidab malli
+
+    for row_i, row in enumerate(map_data):          # itereerib üle kaardi ridade
+        for col_i, cell in enumerate(row):          # itereerib üle rea lahtrite
+            sx, sy = tile_to_screen(col_i, row_i)  # teisendab ekraanikoordinaatideks
+            if cell == '1':                         # sein
+                block = pen.clone()                 # loob seina klooni
+                block.goto(sx, sy)                  # asetab seina õigesse kohta
+                block.showturtle()                  # kuvab seina ekraanil
+                wall_set.add((sx, sy))              # lisab koordinaadi seinte hulka
+            elif cell == ' ':                       # tühi lahter — tekib toit
+                food_list.append(Food(sx, sy))      # loob toidu objekti
+            elif cell == 'B':                       # boonuse lahter
+                bonus_list.append(Bonus(sx, sy))    # loob boonuse objekti
+            elif cell == 'P':                       # mängija alguspositsioon
+                player_start = (sx, sy)             # salvestab alguskoordinaadid
+            elif cell == 'r':                       # punane kummitus
+                ghost_spawn.append((sx, sy, "red"))
+            elif cell == 'p':                       # roosa kummitus
+                ghost_spawn.append((sx, sy, "pink"))
+            elif cell == 'o':                       # oranž kummitus
+                ghost_spawn.append((sx, sy, "orange"))
+            elif cell == 's':                       # helesinine kummitus
+                ghost_spawn.append((sx, sy, "lightblue"))
+
+    player = Player(*player_start)  # loob mängija alguspositsioonile
+
+    # Loob kummitused — 4 värvi Script 8-st, OOP ja ontimer Script 7-st
+    ghost_list = [
+        Ghost(x, y, color, wall_set, player, speed_ms=random.randint(180, 280))
+        for x, y, color in ghost_spawn  # iga kummitus erineva alguskiirusega
+    ]
+
+    return wall_set, player, food_list, bonus_list, ghost_list  # tagastab kõik objektid
+
+
+# ---------------------------------------------------------------------------
+# Mängu lõpetamise funktsioon — Script 8-st
+# ---------------------------------------------------------------------------
+def game_over(player, ghost_list, score_board, message):
+    """Peidab tegelased ja kuvab lõpusõnumi ekraani keskele (Script 8)."""
+    player.hideturtle()             # peidab mängija
+    for ghost in ghost_list:        # itereerib üle kõigi kummituste
+        ghost.deactivate()          # peatab kummituse liikumise
+    score_board.goto(0, 0)          # liigub ekraani keskele
+    score_board.write(message, align="center", font=("Arial", 24, "bold"))  # kuvab sõnumi
+
+
+# ---------------------------------------------------------------------------
+# Peamine mängutsükkel — kutsutakse iga 100 ms järel
+# ---------------------------------------------------------------------------
+def game_loop(player, wall_set, food_list, bonus_list, ghost_list, score_board):
+    """Liigutab mängijat ja kontrollib kõiki kokkupõrkeid."""
+
+    nx, ny = player.next_position()     # arvutab järgmise positsiooni
+
+    # Seina kokkupõrke kontroll koordinaatide set kaudu — Script 7 (O(1))
+    if (nx, ny) not in wall_set:        # kui teel pole seina
+        player.goto(nx, ny)             # liigub järgmisesse positsioonile
+
+    # Teleportatsioon läbi külgservade — Script 8
+    if   player.xcor() >  190:                      # parempoolsest servast välja
+        player.goto(-190, player.ycor())             # ilmub vasakust servast
+    elif player.xcor() < -190:                      # vasakpoolsest servast välja
+        player.goto( 190, player.ycor())             # ilmub paremast servast
+
+    # Toidu kogumine (+10 punkti) — Script 8
+    for food in food_list[:]:                       # kopeerib loendi muutmiseks
+        if player.distance(food) < TILE_SIZE:       # mängija on toidu lähedal
+            food.destroy()                          # eemaldab toidu ekraanilt
+            food_list.remove(food)                  # eemaldab loendist
+            score_board.add(Food.POINTS)            # lisab 10 punkti
+            # Skoori väljastamine konsooli — Script 7: print() iga kogumise korral
+            print("Score: {}".format(score_board.score))
+
+    # Boonuse kogumine (+50 punkti) — Script 8
+    for bonus in bonus_list[:]:                     # kopeerib loendi muutmiseks
+        if player.distance(bonus) < TILE_SIZE:      # mängija on boonuse lähedal
+            bonus.destroy()                         # eemaldab boonuse ekraanilt
+            bonus_list.remove(bonus)                # eemaldab loendist
+            score_board.add(Bonus.POINTS)           # lisab 50 punkti
+            # Skoori väljastamine konsooli — Script 7
+            print("Score (bonus): {}".format(score_board.score))
+
+    # Kummitusega kokkupõrge → mäng lõpeb — Script 8
+    for ghost in ghost_list:                        # kontrollib kõiki kummitusi
+        if player.distance(ghost) < TILE_SIZE + 5:  # mängija puutub kummitust
+            # Kaotuse väljastamine konsooli — Script 7: print("Oyuncu kaybetti!")
+            print("Game Over! Pac-Man caught!")
+            game_over(player, ghost_list, score_board, "Game Over! Pac-Man caught!")
+            return                                  # lõpetab tsükli
+
+    # Võidutingimus: kogu toit ja boonused söödud — Script 8
+    if not food_list and not bonus_list:            # kui mõlemad loendid tühjad
+        # Võidu väljastamine konsooli — Script 7
+        print("You Win! All pellets eaten! Final score: {}".format(score_board.score))
+        game_over(player, ghost_list, score_board, "You Win! All pellets eaten!")
+        return                                      # lõpetab tsükli
+
+    screen.update()                                 # uuendab ekraani
+    turtle.ontimer(                                 # planeerib järgmise tsükli
+        lambda: game_loop(player, wall_set, food_list, bonus_list, ghost_list, score_board),
+        t=100,                                      # 100 ms pärast
+    )
+
+
+# ---------------------------------------------------------------------------
+# Programmi sisendpunkt
+# ---------------------------------------------------------------------------
+def main():
+    global screen  # globaalne muutuja ekraani jaoks
+
+    screen = turtle.Screen()                        # loob mänguakna
+    screen.setup(width=SCREEN_WIDTH, height=SCREEN_HEIGHT)  # määrab akna suuruse
+    screen.bgcolor("black")                         # must taust
+    screen.title("Pac-Man — Combined Edition")      # akna pealkiri
+    screen.tracer(0)                                # lülitab automaatse uuenduse välja
+
+    register_shapes(screen)                         # registreerib GIF-spraidid
+
+    wall_set, player, food_list, bonus_list, ghost_list = build_level(MAP)  # ehitab taseme
+    score_board = ScoreBoard()                      # loob tulemustabeli
+
+    # Klahvide sidumine — nooleklahvid JA WASD — Script 7
+    screen.listen()                                 # aktiveerib klahvide kuulamise
+    screen.onkeypress(player.go_up,    "Up")        # nooleklahv üles
+    screen.onkeypress(player.go_down,  "Down")      # nooleklahv alla
+    screen.onkeypress(player.go_left,  "Left")      # nooleklahv vasakule
+    screen.onkeypress(player.go_right, "Right")     # nooleklahv paremale
+    screen.onkeypress(player.go_up,    "w")         # W-klahv üles
+    screen.onkeypress(player.go_down,  "s")         # S-klahv alla
+    screen.onkeypress(player.go_left,  "a")         # A-klahv vasakule
+    screen.onkeypress(player.go_right, "d")         # D-klahv paremale
+
+    # Käivitab iga kummituse iseseisvalt ontimer kaudu — Script 7
+    for ghost in ghost_list:                        # itereerib üle kõigi kummituste
+        turtle.ontimer(ghost.move, t=250)           # esimene samm 250 ms pärast
+
+    game_loop(player, wall_set, food_list, bonus_list, ghost_list, score_board)  # käivitab mängu
+
+    turtle.done()  # hoiab akna lahti kuni sulgemiseni
+
+
+if __name__ == "__main__":  # käivitab ainult otse käivitamisel, mitte importimisel
+    main()
